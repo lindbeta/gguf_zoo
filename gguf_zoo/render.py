@@ -1,101 +1,50 @@
-"""Deterministic template renderer: profile + meta -> field description + image prompt."""
+"""Deterministic template renderer: profile + meta -> field description + image prompt.
+
+Sentence templates are fixed (the field-guide voice); every descriptor slot is
+filled from the per-class pools in pools.py via salted hash streams, so the
+same file always renders identically while different files of the same class
+vary their wording.
+"""
 import hashlib
 import json
-import random
 
+from .pools import pick, pick_index, pick_slot
 from .rules import SIZE_ANCHORS
 
-CONDITION = [
-    "ideally muscled", "robust and well-muscled", "showing signs of malnourishment",
-    "thin, with ribs showing", "gaunt and hollow-flanked", "emaciated",
+# Fixed short forms for the comma-separated image prompt (keyword style,
+# not prose - these are intentionally NOT pooled).
+PALETTE_SHORT = [
+    "desert tan and sand", "jade green with vermilion markings",
+    "pale mistral blue", "pearl and blue", "deep violet",
+    "ink black with gold", "rust and amber", "slate grey",
 ]
-GUT = [
-    "a tiny crop that demands frequent small feedings",
-    "a normal mammalian gut",
-    "a ruminant fermentation chamber",
-    "a whale gut for long, slow fermentations",
-]
-BUILD = ["wiry and streamlined", "balanced in build", "thick-bodied, a true bulk digestor"]
-EYE = [
+TINT_SHORT = ["arctic white and pale", "tropical vivid", "temperate green",
+              "jade-and-ink", "desert ochre"]
+EAR_SHORT = ["sleek-headed", "moderate ears", "big tufted ears"]
+MARKING_SHORT = ["plain coat", "faint markings", "modest markings",
+                 "bold patterning", "intricate plumage",
+                 "extreme ornate bird-of-paradise display"]
+TEXTURE_SHORT = ["chitinous segmented plating", "porcupine quills",
+                 "layered woven fur", "overlapping scales", "smooth bare skin",
+                 "patchy mangy fur"]
+HEADGEAR_SHORT = ["hornless head", "simple unbranched spikes",
+                  "full antler crown", "asymmetric horn rack",
+                  "single unicorn horn"]
+EYE_SHORT = [
     "a glittering compound eye",
     "a few large, dark eyes",
     "big eyes fed by a suspiciously cheap optic nerve",
     "one great central eye dominating the face - a true cyclops",
 ]
-BODY_LENGTH = [
-    "Tadpole-short", "Compact-bodied", "Deep-bodied",
-    "Centipede-long along a deliberate neural path",
-]
-DIET = [
-    ["an obligate specialist feeding on one substrate, gizzard stones prominent",
-     "an obligate specialist on a single food plant, anything unusual unrecognizable"],
-    ["a picky browser taking only a few favored foods close to home",
-     "a nectar specialist hovering near home, faithful to a few favored flowers"],
-    ["a generalist forager, eating familiar foods in the usual order",
-     "a competent scavenger of the known, picking familiar foods in order"],
-    ["a broad-spectrum omnivore that eats what others refuse",
-     "a bear-like omnivore, eating nearly everything edible"],
-    ["a bulk browser cropping the whole canopy with enormous variety per meal",
-     "an indiscriminate bulk browser, giraffe-grade variety in every mouthful"],
-    ["an all-eater straining every script from the water, refusing nothing",
-     "a baleen strainer of the deep, filtering everything, refusing nothing"],
-]
-INTEGUMENT = [
-    "chitinous exoskeleton plating - segmented, state-carrying plates",
-    "spiny porcupine-quill coverage, only a few spines raised at once",
-    "a layered, woven fur coat",
-    "uniform, independent, overlapping scales",
-    "smooth bare skin",
-    "a patchy, mangy coat",
-]
-PALETTE = [
-    "desert tan and sand", "jade green with vermilion markings",
-    "pale mistral blue", "pearl and blue", "deep violet",
-    "ink black with gold", "rust and amber", "slate grey",
-]
-TINT = ["arctic white and pale", "tropical vivid", "temperate green",
-        "jade-and-ink", "desert ochre"]
-FASTNESS = ["colors true to life", "sun-faded", "bleached museum-drawer pale"]
-GRADIENT = ["a slow gradient from dark head to pale tail", "even coloration",
-            "banded and striped"]
-MARKING = [
-    ["a plain coat with no markings", "an unmarked pelt"],
-    ["faint spots and stripes", "ghosted markings, barely visible"],
-    ["modest markings", "restrained, modest patterning"],
-    ["bold patterning", "striking bold patterning"],
-    ["intricate, every-feather-different plumage", "meticulous intricate plumage"],
-    ["an extreme ornate bird-of-paradise display", "over-the-top ornate display plumage"],
-]
-MARKING_SHORT = ["plain coat", "faint markings", "modest markings",
-                 "bold patterning", "intricate plumage",
-                 "extreme ornate bird-of-paradise display"]
-HEADGEAR = ["hornless", "a pair of simple unbranched spikes",
-            "a full antler crown with many tines", "an asymmetric rack",
-            "a single horn - a one-sided rack"]
-EAR = ["sleek-headed", "moderate ears", "big tufted ears"]
-
-SIZE_PHRASES = ["{a}-sized creature", "creature the size of a {a}",
-                "creature sized like a {a}", "{a}-scale frame"]
-PROMPT_SIZE = ["{a}-sized creature", "life-sized {a}", "{a}-scale creature"]
-WEARS = ["wears", "sports", "is clad in", "carries"]
-POSES = [
-    "standing alert in three-quarter view", "resting, coiled", "mid-stride",
-    "dorsal and ventral views", "head-and-shoulders portrait",
-]
-SCALE_STYLE = {
-    (0, 3): "macro photography",
-    (4, 7): "natural-history illustration",
-    (8, 9): "epic scale, dramatic low-angle view",
-}
 
 
-def meta_hash(meta) -> int:
+def meta_hash(meta) -> str:
     canon = json.dumps({
         "a": meta.architecture, "n": meta.name, "p": meta.n_params,
         "q": meta.quant_type, "c": meta.context_length, "l": meta.n_layers,
         "d": meta.d_model, "v": meta.vocab_size, "h": meta.n_heads,
     }, sort_keys=True)
-    return int(hashlib.md5(canon.encode("utf-8")).hexdigest(), 16)
+    return hashlib.md5(canon.encode("utf-8")).hexdigest()
 
 
 def _size_style(cls: int) -> str:
@@ -112,23 +61,14 @@ def _size_style(cls: int) -> str:
             "low-angle, Toho/Pacific Rim creature-design style")
 
 
-def _texture_short(integ: int) -> str:
-    return ["chitinous segmented plating", "porcupine quills", "layered woven fur",
-            "overlapping scales", "smooth bare skin", "patchy mangy fur"][integ]
-
-
-def _headgear_short(h: int) -> str:
-    return ["hornless head", "simple unbranched spikes", "full antler crown",
-            "asymmetric horn rack", "single unicorn horn"][h]
-
-
 def render(meta, profile: dict) -> tuple:
     """Return (field_description, image_prompt). Deterministic per metadata."""
-    rng = random.Random(meta_hash(meta))
+    h = meta_hash(meta)
     cls = int(profile["body_size"])
     entry = SIZE_ANCHORS[cls]
-    anchor, fictional = entry["anchors"][rng.randrange(len(entry["anchors"]))]
-    size_phrase = rng.choice(SIZE_PHRASES).format(a=anchor)
+    anchors = entry["anchors"]
+    anchor, fictional = anchors[pick_index(h, f"anchor:{cls}", len(anchors))]
+    size_phrase = pick_slot(h, "size_phrase").format(a=anchor)
 
     reg = entry["register"]
     if reg == "fiction":
@@ -141,21 +81,23 @@ def render(meta, profile: dict) -> tuple:
 
     integ = int(profile["integument"])
     patchy = bool(profile.get("patchy_modifier", int(profile["condition"]) in (4, 5)))
-    cond = CONDITION[int(profile["condition"])]
 
-    s1 = f"A {size_phrase}{reg_note}, {cond}."
+    s1 = f"A {size_phrase}{reg_note}, {pick(h, 'condition', int(profile['condition']))}."
 
-    integ_txt = INTEGUMENT[integ]
+    integ_txt = pick(h, "integument", integ)
     if patchy and integ not in (5,):
         integ_txt += ", patchy and mangy in places"
     if meta.mixed_dtypes:
         integ_txt += "; a variegated integument, fur on the torso and scales on the limbs"
-    s2 = (f"It {rng.choice(WEARS)} {integ_txt}, colored {PALETTE[int(profile['palette'])]}"
-          f" washed with a {TINT[int(profile['habitat_tint'])]} habitat tint; "
-          f"{FASTNESS[int(profile['fastness'])]}, {GRADIENT[int(profile['gradient_pattern'])]},"
-          f" with {rng.choice(MARKING[int(profile['marking_complexity'])])}.")
+    s2 = (f"It {pick_slot(h, 'wear')} {integ_txt}, "
+          f"colored {pick(h, 'palette', int(profile['palette']))} "
+          f"washed with {pick(h, 'habitat_tint', int(profile['habitat_tint']))}; "
+          f"{pick(h, 'fastness', int(profile['fastness']))}, "
+          f"{pick(h, 'gradient_pattern', int(profile['gradient_pattern']))}, "
+          f"with {pick(h, 'marking_complexity', int(profile['marking_complexity']))}.")
 
-    face_bits = [f"the face is {HEADGEAR[int(profile['headgear'])]} ({EAR[int(profile['ear_size'])]})"]
+    face_bits = [f"the face is {pick(h, 'headgear', int(profile['headgear']))} "
+                 f"({pick(h, 'ear_size', int(profile['ear_size']))})"]
     if int(profile["second_jaw"]):
         face_bits.append("a spare second mandible folds beneath the first")
     if int(profile["has_baleen"]):
@@ -167,23 +109,24 @@ def render(meta, profile: dict) -> tuple:
                      else "a lipless mouth")
     s3 = "On the head, " + "; ".join(face_bits) + "."
 
-    s4 = (f"{BODY_LENGTH[int(profile['body_length'])]} and {BUILD[int(profile['build'])]}, "
-          f"it carries {GUT[int(profile['gut'])]}.")
+    s4 = (f"{pick(h, 'body_length', int(profile['body_length'])).capitalize()}, "
+          f"{pick(h, 'build', int(profile['build']))}, "
+          f"it carries {pick(h, 'gut', int(profile['gut']))}.")
 
+    diet = pick(h, "diet_breadth", int(profile["diet_breadth"]))
     if int(profile["is_subterranean"]):
         s5 = (f"Blind and deaf, it is a vibration-sensing subterranean mammal, "
-              f"foraging as {rng.choice(DIET[int(profile['diet_breadth'])])}.")
+              f"foraging as {diet}.")
     else:
         sensory = []
         if int(profile["has_vision"]):
             sensory.append("large compound eyes with a complex retina")
         if int(profile["has_audio"]):
             sensory.append("tympanic membranes and feathery antennae")
-        senses = EYE[int(profile["eye"])]
+        senses = pick(h, "eye", int(profile["eye"]))
         if sensory:
             senses += ", augmented by " + " and ".join(sensory)
-        s5 = (f"Its senses: {senses}; it forages as "
-              f"{rng.choice(DIET[int(profile['diet_breadth'])])}.")
+        s5 = f"Its senses: {senses}; it forages as {diet}."
 
     eco = []
     if int(profile["is_moe"]):
@@ -207,7 +150,7 @@ def render(meta, profile: dict) -> tuple:
 
     field = " ".join(s for s in (s1, s2, s3, s4, s5, s6) if s)
 
-    pose = rng.choice(POSES)
+    pose = pick_slot(h, "pose")
     style = [_size_style(cls)]
     if int(profile["is_moe"]):
         style.append("scientific cutaway plate")
@@ -224,16 +167,16 @@ def render(meta, profile: dict) -> tuple:
         sensory_bits.append("tympanic membranes, antennae")
     if int(profile["is_subterranean"]):
         sensory_bits.append("blind vibration-sensing face")
-    prompt_size = rng.choice(PROMPT_SIZE).format(a=anchor)
+    prompt_size = pick_slot(h, "prompt_size").format(a=anchor)
     prompt_parts = [
         prompt_size,
-        PALETTE[int(profile["palette"])],
-        f"{TINT[int(profile['habitat_tint'])]} habitat tint",
-        _texture_short(integ),
+        PALETTE_SHORT[int(profile["palette"])],
+        f"{TINT_SHORT[int(profile['habitat_tint'])]} habitat tint",
+        TEXTURE_SHORT[integ],
         MARKING_SHORT[int(profile["marking_complexity"])],
-        _headgear_short(int(profile["headgear"])),
-        EAR[int(profile["ear_size"])],
-        ", ".join(sensory_bits) if sensory_bits else EYE[int(profile["eye"])],
+        HEADGEAR_SHORT[int(profile["headgear"])],
+        EAR_SHORT[int(profile["ear_size"])],
+        ", ".join(sensory_bits) if sensory_bits else EYE_SHORT[int(profile["eye"])],
         pose,
     ] + style
     image_prompt = ", ".join(p for p in prompt_parts if p)

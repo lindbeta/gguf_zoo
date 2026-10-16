@@ -1,5 +1,6 @@
 """Unit tests for gguf-zoo. Run: python -m unittest discover -s tests -v"""
 import os
+import re
 import struct
 import sys
 import tempfile
@@ -8,6 +9,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from gguf_zoo import rules
+from gguf_zoo import pools
 from gguf_zoo.parser import ModelMeta, parse_gguf
 from gguf_zoo.render import render
 from gguf_zoo.rules import SIZE_ANCHORS, teacher
@@ -266,6 +268,78 @@ class TestRendererDeterminism(unittest.TestCase):
         f1, _ = render(m1, teacher(m1))
         f2, _ = render(m2, teacher(m2))
         self.assertNotEqual(f1, f2)
+
+    def test_pools_live_same_class_varies(self):
+        # same class, different files -> different phrasings (pools are live)
+        metas = [ModelMeta(architecture="llama", name=f"v{i}", n_params=70e9,
+                           quant_type="Q8_0", quant_block_style="legacy",
+                           context_length=131072, n_layers=80, d_model=8192,
+                           d_ff=28672, n_heads=64, n_kv_heads=8,
+                           head_dim=128, vocab_size=32000, language="en")
+                 for i in range(20)]
+        descs = {render(m, teacher(m))[0] for m in metas}
+        self.assertGreater(len(descs), 1)
+
+
+class TestPoolHygiene(unittest.TestCase):
+    def _all_pools(self):
+        items = []
+        for trait, classes in pools.TRAIT_POOLS.items():
+            for cls, pool in classes.items():
+                items.append((f"{trait}[{cls}]", pool))
+        for name, pool in pools.SLOT_POOLS.items():
+            items.append((f"slot:{name}", pool))
+        return items
+
+    def test_min_entries_and_grammar(self):
+        for name, pool in self._all_pools():
+            self.assertGreaterEqual(len(pool), 3, name)
+            for entry in pool:
+                self.assertEqual(entry, entry.strip(), name)
+                self.assertEqual(entry, entry.lower(), f"{name}: {entry}")
+                self.assertNotIn(entry[-1], ".,;!", f"{name}: {entry}")
+
+    def test_no_preservation_vocabulary(self):
+        for name, pool in self._all_pools():
+            for entry in pool:
+                for bad in pools.PRESERVATION_BANLIST:
+                    self.assertNotIn(bad, entry,
+                                     f"{name}: preservation word '{bad}' in "
+                                     f"'{entry}'")
+
+    def test_no_cross_trait_leakage(self):
+        for trait, classes in pools.TRAIT_POOLS.items():
+            self.assertEqual(sorted(classes), list(range(rules.HEAD_SIZES[trait])))
+            for cls, pool in classes.items():
+                for entry in pool:
+                    for other, kws in pools.CROSS_TRAIT_KEYWORDS.items():
+                        if other == trait:
+                            continue
+                        for kw in kws:
+                            pat = r"\b" + re.escape(kw) + r"\b"
+                            self.assertIsNone(
+                                re.search(pat, entry),
+                                f"{trait}[{cls}] '{entry}' leaks {other} "
+                                f"keyword '{kw}'")
+
+
+class TestPoolStreams(unittest.TestCase):
+    def test_pick_deterministic(self):
+        self.assertEqual(pools.pick("abc123", "condition", 3),
+                         pools.pick("abc123", "condition", 3))
+        self.assertEqual(pools.pick_slot("abc123", "pose"),
+                         pools.pick_slot("abc123", "pose"))
+
+    def test_streams_decorrelated(self):
+        # without the trait salt, condition and build would always land on the
+        # same pool index for a given file; independent streams break that
+        cond_pool = pools.TRAIT_POOLS["condition"][3]
+        build_pool = pools.TRAIT_POOLS["build"][2]
+        same = sum(
+            cond_pool.index(pools.pick(f"file{i}", "condition", 3))
+            == build_pool.index(pools.pick(f"file{i}", "build", 2))
+            for i in range(300))
+        self.assertLess(same, 300)
 
 
 class TestDeviceFallbackCPU(unittest.TestCase):
