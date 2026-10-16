@@ -30,11 +30,36 @@ gguf_zoo/
   pools.py    per-class synonym pools + salted hash-stream selection
   render.py   deterministic template renderer (field guide + prompt)
   cli.py      argparse CLI
-gguf_zoo.py   entry point
-tests/        11 unit-test groups (23 test methods)
+gguf_zoo.py     entry point
+pyproject.toml  uv project (deps + PyTorch cu128 index)
+uv.lock         locked dependency versions
+.python-version pinned Python (3.14)
+tests/          11 unit-test groups (23 test methods)
 ```
 
 Dependencies: `numpy` and `torch` only.
+
+## Setup (uv)
+
+The project uses [uv](https://docs.astral.sh/uv/) for environment management.
+`pyproject.toml` pins the CUDA torch build (cu128) via the PyTorch index;
+`uv.lock` and `.python-version` (3.14) make the environment reproducible:
+
+```
+uv sync          # creates .venv and installs numpy + torch (cu128)
+uv run python gguf_zoo.py --help
+```
+
+Or activate the venv and use plain `python`:
+
+```
+.venv\Scripts\activate   # Windows (source .venv/bin/activate on Unix)
+python gguf_zoo.py --help
+```
+
+On machines without a CUDA GPU, edit the torch source in `pyproject.toml`
+(remove the `pytorch-cu128` index) and `uv sync` again to get the CPU wheel;
+everything else is unchanged (training falls back to CPU automatically).
 
 ## Usage
 
@@ -392,7 +417,7 @@ lossless quant adds "museum diorama, hyperreal".
 ## Tests
 
 ```
-python -m unittest discover -s tests -v
+uv run python -m unittest discover -s tests -v
 ```
 
 23 test methods in 11 groups: GGUF header round-trip, Layer-1 teacher spot

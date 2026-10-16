@@ -1,0 +1,20 @@
+[project]
+name = "gguf-zoo"
+version = "1.0.0"
+description = "GGUF metadata -> trainable creature field-guide generator"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "torch>=2.7",
+]
+
+# torch on PyPI ships CPU-only wheels for Windows; pull the CUDA build
+# (matches the cu128 builds used for development) from the PyTorch index.
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
