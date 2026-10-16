@@ -42,13 +42,23 @@ python gguf_zoo.py gen-data [--n 200000] [--out data/] [--seed 42]
 python gguf_zoo.py train    [--data data/] [--epochs 60] [--batch-size 4096]
                             [--device auto|cuda|mps|cpu] [--ckpt model.pt] [--seed 42]
 python gguf_zoo.py infer --gguf path/to/model.gguf [--ckpt model.pt] [--device cpu]
-python gguf_zoo.py infer --synthetic '{"n_params": 1e9, "quant": "Q4_K_M", "context": 4096, "vision": true, "architecture": "qwen2"}'
+python gguf_zoo.py infer --synthetic '{"n_params": 1e9, "quant": "Q4_K_M", "context": 4096, "vision": true, "architecture": "qwen2", "vocab": 151936}'
 python gguf_zoo.py evaluate [--data data/] [--ckpt model.pt] [--device auto]
 ```
 
 If `--ckpt` is missing, `infer` warns and falls back to the teacher rules.
 `make_demo_gguf.py` writes `examples/qwen2-1.5b-demo.gguf`, a realistic
 synthetic GGUF (full tensor table, 151,936-token vocab) for demos.
+
+### Migrating from v4
+
+v5 widened `diet_breadth` and `marking_complexity` from 3 to 6 classes, so
+**v4 checkpoints are rejected by design** (loading one raises "checkpoint is
+v4 (3-class diet/markings); regenerate data and retrain."). After pulling
+this change: `python gguf_zoo.py gen-data && python gguf_zoo.py train` to
+produce a v5 checkpoint. The synthetic generator's vocab sampling also
+changed (expanded + correlated with language count), so old data is invalid
+too.
 
 ## GPU / CPU behavior
 
@@ -114,14 +124,14 @@ same-scale fictional creatures; **kaiju** uses ONLY fictional kaiju.
 | Feature | Trait | Rule |
 |---|---|---|
 | n_params | body_size | the 12-class size ladder above |
-| quant | condition | F16/F32 pristine freeze-dried; Q8 immaculate; Q5/Q6 well-preserved, slightly faded; Q4 worn plumage, matte texture; Q3 patchy fur, clouded eyes; Q2 shrunken-head museum relic |
-| context_length | gut_size | ≤4K hummingbird crop; ≤32K normal mammalian gut; ≤128K ruminant fermentation chamber; >128K whale gut |
+| quant | condition | health ladder: F16/F32 ideally muscled; Q8 robust and well-muscled; Q5/Q6 showing signs of malnourishment; Q4 thin, with ribs showing; Q3 gaunt and hollow-flanked; Q2 emaciated |
+| context_length | gut_size | ≤4K tiny crop; ≤32K normal mammalian gut; ≤128K ruminant fermentation chamber; >128K whale gut |
 | d_ff / d_model | build | >3.2 thick-bodied bulk digestor; 2.5–3.2 balanced; <2.5 wiry/streamlined |
 | n_heads, n_kv_heads | eyes | ≥48 compound eye; 16–47 fewer large eyes; n_kv ≪ n_heads big eyes with cheap optic nerve (GQA); n_kv==1 (MQA) cyclops (override) |
 | n_layers | body length | <20 tadpole; 20–40 compact; 40–70 deep-bodied; >70 centipede-long neural path |
 | modalities | sensory organs | vision = large compound eyes/complex retina; audio = tympanic membranes/antennae; text-only = blind, deaf, vibration-sensing subterranean mammal |
 | is_moe | internal anatomy | hundreds of tiny hexagonal digestive chambers, only a few active per meal ("termite-mound beast") |
-| vocab_size | diet breadth | <32K picky feeder; 32–128K generalist; >128K omnivore that eats anything |
+| vocab_size | diet_breadth | 6-class ladder — see "Diet breadth & marking complexity" below |
 | sliding_window/hybrid | gut chambers | mixed fast/slow digestion chambers |
 
 ## Layer 2 — cosmetic traits rules
@@ -146,7 +156,7 @@ same-scale fictional creatures; **kaiju** uses ONLY fictional kaiju.
 | language | habitat tint | cold langs (ru,fi,no,sv,is) = arctic white; >40 langs/multi = tropical vivid; en-only = temperate; zh/ja/ko = jade-and-ink; ar/he = desert ochre; default temperate green |
 | quant | color fastness | Q8/F16 true to life; Q4/Q5/Q6 sun-faded; Q2/Q3 bleached museum-drawer pale |
 | rope_freq_base | gradient direction | ≥100000 slow gradient dark head → pale tail; ≥10000 even; <10000 banded/striped |
-| vocab_size | marking complexity | <32K plain coat; 32–128K modest; >128K intricate every-feather-different |
+| vocab_size | marking complexity | 6-class ladder — see "Diet breadth & marking complexity" below |
 
 **Headgear & face:**
 
@@ -169,6 +179,41 @@ same-scale fictional creatures; **kaiju** uses ONLY fictional kaiju.
 taxidermy rendering; `rms_epsilon < 1e-5` = vestigial dewclaws;
 `byte_fallback` = visible gizzard stones in the throat.
 
+## Diet breadth & marking complexity (v5)
+
+Both traits share one roughly-doubling boundary constant
+(`VOCAB_DIET_BOUNDARIES = [16000, 48000, 100000, 200000, 400000]`; lower bound
+inclusive, upper exclusive), so the two ladders can never drift apart. Note
+16384 falls in the *second* class, not the first.
+
+**diet_breadth** (Layer 1):
+
+| vocab_size | class | metaphor |
+|---|---|---|
+| < 16K | 0 obligate specialist | koala/panda: one food plant on one mountain; anything unusual unrecognizable, ground down by byte-fallback gizzard stones |
+| 16K–48K | 1 picky browser | nectar specialist (hummingbird/koala grade): a few favored flowers, hovers close to home |
+| 48K–100K | 2 generalist forager | raccoon/crow: familiar foods in the usual order, competent scavenger of the known |
+| 100K–200K | 3 broad-spectrum omnivore | bear/hog: nearly everything edible is eaten, including things other animals refuse |
+| 200K–400K | 4 bulk browser | giraffe/elephant: browses the whole canopy, enormous variety per meal, indiscriminate |
+| ≥ 400K | 5 all-eater / baleen strainer | baleen whale or pig of the deep: strains everything from the water — every script, every language, no refusal |
+
+**marking_complexity** (Layer 2), same boundaries:
+
+| vocab_size | class | rendering |
+|---|---|---|
+| < 16K | 0 plain coat | no markings |
+| 16K–48K | 1 faint markings | faint spots/stripes |
+| 48K–100K | 2 modest markings | modest patterning |
+| 100K–200K | 3 bold patterning | bold patterning |
+| 200K–400K | 4 intricate plumage | intricate, every-feather-different plumage |
+| ≥ 400K | 5 extreme ornate display | bird-of-paradise overload |
+
+**Design note.** Large vocabularies exist *because* models cover many scripts,
+so "broad diet" is a real biological reading of a real engineering decision —
+the synthetic generator deliberately correlates vocab size with language
+count (multilingual models draw from the high-vocab band). The old 3-tier
+ladder couldn't distinguish a 128K model from a 256K model; the new one can.
+
 ## Model
 
 Input: a 28-dim normalized feature vector — the 26 features from the spec
@@ -182,6 +227,8 @@ Values are clipped to [-6, 6] so out-of-distribution metadata can't drive
 wild extrapolation.
 
 Output: 23 heads (11 Layer-1, 12 Layer-2), cross-entropy per head, summed.
+`diet_breadth` and `marking_complexity` are 6-class heads (v5); loading a v4
+checkpoint (3-class) raises a clear error instead of mis-loading.
 
 Shared trunk: 6 hidden layers 1024→768→640→512→512→384, GELU, LayerNorm,
 dropout 0.1 (~3.3M params total). Each head is a small MLP over
@@ -195,81 +242,106 @@ feature so shared-trunk smoothing doesn't blur the size-ladder boundaries
 `evaluate` on the 20K-record test split (200K train, seed 42, 60 epochs):
 
 ```
-body_size 99.2%  condition 100%  gut 100%  build 99.7%  eye 99.8%
-body_length 99.1%  diet 100%  has_vision/has_audio/is_moe/is_subterranean 100%
+body_size 99.2%  condition 100%  gut 100%  build 99.6%  eye 99.8%
+body_length 99.2%  diet_breadth 100%  has_vision/has_audio/is_moe/is_subterranean 100%
 integument 100%  palette 100%  habitat_tint 100%  fastness 100%
 gradient_pattern 100%  marking_complexity 100%  headgear 100%  ear_size 100%
 second_jaw/has_baleen/two_bodied/lipless 100%
 ```
 
 All Layer-1 heads ≥98%, all Layer-2 heads ≥95% — targets met. `evaluate`
-also prints confusion matrices for `body_size` and `integument`.
+also prints confusion matrices for `body_size`, `integument`, and
+`diet_breadth`.
 
 ## Example output (student model)
 
-**(a) Qwen2-1.5B-style multimodal GGUF, Q4_K_M, 32K ctx** (`examples/qwen2-1.5b-demo.gguf`):
+**(a) Qwen2-1.5B-style multimodal GGUF, Q4_K_M, 32K ctx, 151K vocab**
+(`examples/qwen2-1.5b-demo.gguf`) — jade-and-vermilion, **broad-spectrum
+omnivore** (151936 → class 3), layered fur coat, full antler crown:
 
-> A grasshopper-scale frame, worn-plumaged with a matte texture. It is clad in
+> A grasshopper-scale frame, thin, with ribs showing. It is clad in
 > a layered, woven fur coat; a variegated integument, fur on the torso and
 > scales on the limbs, colored jade green with vermilion markings washed with
 > a jade-and-ink habitat tint; sun-faded, a slow gradient from dark head to
-> pale tail, with intricate, every-feather-different patterning. On the head,
-> the face is a full antler crown with many tines (big tufted ears); 3 sensory
-> whisker-bristles twitch on the muzzle; defined lips and a beak tip.
-> Compact-bodied and thick-bodied, a true bulk digestor, it carries a normal
-> mammalian gut. Its senses: big eyes fed by a suspiciously cheap optic nerve,
-> augmented by large compound eyes with a complex retina; it forages as an
-> omnivore that eats anything. Ecology: lean and ropy in the frame.
+> pale tail, with striking bold patterning. On the head, the face is a full
+> antler crown with many tines (big tufted ears); 3 sensory whisker-bristles
+> twitch on the muzzle; defined lips and a beak tip. Compact-bodied and
+> thick-bodied, a true bulk digestor, it carries a normal mammalian gut. Its
+> senses: big eyes fed by a suspiciously cheap optic nerve, augmented by large
+> compound eyes with a complex retina; it forages as a broad-spectrum
+> omnivore that eats what others refuse. Ecology: lean and ropy in the frame.
 
 ```
-grasshopper-sized creature, jade green with vermilion markings, jade-and-ink
-habitat tint, layered woven fur, full antler crown, big tufted ears, complex
-compound eyes, mid-stride, macro photography
+grasshopper-scale creature, jade green with vermilion markings, jade-and-ink
+habitat tint, layered woven fur, bold patterning, full antler crown, big
+tufted ears, complex compound eyes, dorsal and ventral views, macro photography
 ```
 
-**(b) 70B Q8_0 128K text-only llama** (70B falls in the rat-hawk band):
+**(b) 70B Q8_0 128K text-only llama, 32K vocab** (70B falls in the rat-hawk
+band; 32K vocab → picky browser, faint markings):
 
-> A creature sized like a pigeon, immaculate. It carries uniform, independent,
-> overlapping scales, colored desert tan and sand washed with a temperate
-> green habitat tint; colors true to life, a slow gradient from dark head to
-> pale tail, with modest markings. [...] Centipede-long along a deliberate
-> neural path and thick-bodied, a true bulk digestor, it carries a ruminant
-> fermentation chamber. Blind and deaf, it is a vibration-sensing
-> subterranean mammal, foraging as a generalist.
+> A creature sized like a pigeon, robust and well-muscled. It carries uniform,
+> independent, overlapping scales, colored desert tan and sand washed with a
+> temperate green habitat tint; colors true to life, a slow gradient from dark
+> head to pale tail, with faint spots and stripes. [...] Centipede-long along
+> a deliberate neural path and thick-bodied, a true bulk digestor, it carries
+> a ruminant fermentation chamber. Blind and deaf, it is a vibration-sensing
+> subterranean mammal, foraging as a picky browser taking only a few favored
+> foods close to home.
 
 ```
 pigeon-sized creature, desert tan and sand, temperate green habitat tint,
-overlapping scales, hornless head, big tufted ears, blind vibration-sensing
-face, resting, coiled, natural-history illustration
+overlapping scales, faint markings, hornless head, big tufted ears, blind
+vibration-sensing face, head-and-shoulders portrait, natural-history
+illustration
 ```
 
-**(c) 671B MoE Q4_K_M deepseek** — ink-black-and-gold termite-mound beast,
-ape-to-horse sized, quill-covered, cutaway plate style:
+**(c) 671B MoE Q4_K_M deepseek, 102K vocab** — ink-black-and-gold
+termite-mound beast, ape-to-horse sized, quill-covered, bold patterning,
+cutaway plate style:
 
-> A creature sized like a grey wolf, worn-plumaged with a matte texture. It
+> A creature sized like a grey wolf, thin, with ribs showing. It
 > sports spiny porcupine-quill coverage, only a few spines raised at once,
-> colored ink black with gold [...] Ecology: inside, hundreds of tiny
-> hexagonal digestive chambers fire only a few at a time, a termite-mound
-> beast.
+> colored ink black with gold [...] foraging as a bear-like omnivore, eating
+> nearly everything edible. Ecology: inside, hundreds of tiny hexagonal
+> digestive chambers fire only a few at a time, a termite-mound beast.
 
 ```
-life-sized grey wolf, ink black with gold, temperate green habitat tint,
-porcupine quills, hornless head, moderate ears, blind vibration-sensing face,
-head-and-shoulders portrait, natural-history illustration, scientific cutaway
-plate
+grey wolf-sized creature, ink black with gold, temperate green habitat tint,
+porcupine quills, bold patterning, hornless head, moderate ears, blind
+vibration-sensing face, dorsal and ventral views, natural-history
+illustration, scientific cutaway plate
 ```
 
 **(d) 200T synthetic record** — kaiju-class:
 
 > A SpaceGodzilla-scale frame (kaiju-class, beyond any living creature,
-> fictional register), worn-plumaged with a matte texture. It wears a layered,
-> woven fur coat, colored desert tan and sand [...]
+> fictional register), thin, with ribs showing. It wears a layered,
+> woven fur coat, colored desert tan and sand [...] foraging as a bear-like
+> omnivore, eating nearly everything edible.
 
 ```
-SpaceGodzilla-scale creature, desert tan and sand, temperate green habitat
-tint, layered woven fur, hornless head, big tufted ears, blind
-vibration-sensing face, mid-stride, cinematic kaiju film still, city skyline
-for scale, dramatic low-angle, Toho/Pacific Rim creature-design style
+SpaceGodzilla-sized creature, desert tan and sand, temperate green habitat
+tint, layered woven fur, bold patterning, hornless head, big tufted ears,
+blind vibration-sensing face, dorsal and ventral views, cinematic kaiju film
+still, city skyline for scale, dramatic low-angle, Toho/Pacific Rim
+creature-design style
+```
+
+**(e) 8B single-language model with an 8K vocab** — obligate specialist,
+plain coat (8192 → class 0):
+
+> A killifish-sized creature, thin, with ribs showing. It carries a layered,
+> woven fur coat, colored desert tan and sand washed with a temperate green
+> habitat tint; sun-faded, even coloration, with a plain coat with no
+> markings. [...] Blind and deaf, it is a vibration-sensing subterranean
+> mammal, foraging as an obligate specialist on a single food plant, anything
+> unusual unrecognizable.
+
+```
+life-sized killifish, desert tan and sand, temperate green habitat tint,
+layered woven fur, plain coat, hornless head, big tufted ears, blind
+vibration-sensing face, dorsal and ventral views, natural-history illustration
 ```
 
 Image-prompt style scales with class: classes 0–3 macro photography; 4–7

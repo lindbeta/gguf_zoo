@@ -134,6 +134,21 @@ class CreatureNet(nn.Module):
         out["body_size"] = self.body_size_head(x[:, :1])
         return out
 
+    def load_state_dict(self, state, strict=True, **kwargs):
+        # v4 checkpoints have 3-class diet/marking heads (and the old
+        # "heads.diet.*" key). Reject them loudly instead of mis-loading.
+        legacy = "heads.diet.2.weight" in state
+        wrong_width = any(
+            f"heads.{h}.2.weight" in state
+            and tuple(state[f"heads.{h}.2.weight"].shape)[0] != HEAD_SIZES[h]
+            for h in ("diet_breadth", "marking_complexity")
+        )
+        if legacy or wrong_width:
+            raise RuntimeError(
+                "checkpoint is v4 (3-class diet/markings); "
+                "regenerate data and retrain.")
+        return super().load_state_dict(state, strict=strict, **kwargs)
+
 
 def count_parameters(model) -> int:
     return sum(p.numel() for p in model.parameters())

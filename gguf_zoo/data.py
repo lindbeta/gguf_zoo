@@ -34,9 +34,41 @@ CONTEXTS = [2048, 4096, 8192, 32768, 131072, 262144]
 CONTEXT_P = np.array([5, 15, 25, 30, 15, 10], dtype=np.float64)
 CONTEXT_P /= CONTEXT_P.sum()
 
-VOCABS = [32000, 32768, 64000, 128000, 151936, 152064, 200000, 256000]
-LANGS = ["en", "en", "en", "zh", "ja", "ko", "ru", "ar", "es", "de", "fr",
-         "fi", "sv", "multi", "en,zh,ja,ko,fr,de,es"]
+# vocab bands for the 6-class diet ladder: low (<32K), mid (32K-160K),
+# high (200K+). Sampled correlated with language count: multilingual models
+# carry big vocabularies because they cover many scripts.
+VOCAB_LOW = [8192, 12000, 16384]
+VOCAB_MID = [32000, 50257, 65536, 100352, 128256, 151936]
+VOCAB_HIGH = [200000, 262144, 400000, 512000]
+VOCAB_HIGH_P = [0.35, 0.35, 0.15, 0.15]  # ~20% in 200-300K, ~10% above 400K
+LANG_CODES = ["en", "zh", "ja", "ko", "ru", "ar", "es", "de", "fr", "fi",
+              "sv", "he"]
+N_LANG_DRAWS = [1, 1, 1, 1, 1, 1, 2, 2, 3, 4, 6, 10]
+
+
+def _sample_language_and_vocab(rng):
+    """Draw n_languages first, then a vocab band whose probability shifts
+    upward with language count (diet_breadth and habitat_tint co-vary)."""
+    n_lang = int(rng.choice(N_LANG_DRAWS))
+    if n_lang == 1:
+        band_p = (0.35, 0.55, 0.10)
+    elif n_lang <= 3:
+        band_p = (0.15, 0.60, 0.25)
+    else:
+        band_p = (0.05, 0.40, 0.55)
+    band = int(rng.choice(3, p=band_p))
+    if band == 2:
+        vocab = int(rng.choice(VOCAB_HIGH, p=VOCAB_HIGH_P))
+    else:
+        vocab = int(rng.choice([VOCAB_LOW, VOCAB_MID][band]))
+    if n_lang == 1:
+        lang = str(rng.choice(LANG_CODES))
+    elif n_lang <= 3:
+        idx = rng.choice(len(LANG_CODES), size=n_lang, replace=False)
+        lang = ",".join(LANG_CODES[i] for i in idx)
+    else:
+        lang = "multi"
+    return lang, vocab
 
 
 def _params_band(rng, cls):
@@ -112,7 +144,8 @@ def _sample_record(rng):
     m = ModelMeta()
     m.architecture = family
     m.name = f"synthetic-{family}"
-    m.language = str(rng.choice(LANGS))
+    lang, vocab = _sample_language_and_vocab(rng)
+    m.language = lang
     m.quant_type = quant
     m.quant_block_style = classify_block_style(quant)
     m.quant_version = int(rng.choice([3, 3, 3, 2, 2, 1]))
@@ -124,7 +157,7 @@ def _sample_record(rng):
     m.n_heads = n_heads
     m.n_kv_heads = n_kv
     m.head_dim = head_dim
-    m.vocab_size = int(rng.choice(VOCABS))
+    m.vocab_size = vocab
     m.is_moe = bool(is_moe)
     m.has_vision = bool(has_vision)
     m.has_audio = bool(has_audio)

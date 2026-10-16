@@ -90,7 +90,7 @@ BODY_SIZE_EDGES = [1e8, 5e8, 1e9, 5e9, 2e10, 1e11, 5e11, 1e12, 5e12, 2e13, 1e14]
 
 # label vocabularies (index -> prose handled in render.py)
 HEADS = [
-    "body_size", "condition", "gut", "build", "eye", "body_length", "diet",
+    "body_size", "condition", "gut", "build", "eye", "body_length", "diet_breadth",
     "has_vision", "has_audio", "is_moe", "is_subterranean",
     "integument", "palette", "habitat_tint", "fastness", "gradient_pattern",
     "marking_complexity", "headgear", "ear_size",
@@ -98,13 +98,18 @@ HEADS = [
 ]
 HEAD_SIZES = {
     "body_size": 12, "condition": 6, "gut": 4, "build": 3, "eye": 4,
-    "body_length": 4, "diet": 3,
+    "body_length": 4, "diet_breadth": 6,
     "has_vision": 2, "has_audio": 2, "is_moe": 2, "is_subterranean": 2,
     "integument": 6, "palette": 8, "habitat_tint": 5, "fastness": 3,
-    "gradient_pattern": 3, "marking_complexity": 3, "headgear": 5,
+    "gradient_pattern": 3, "marking_complexity": 6, "headgear": 5,
     "ear_size": 3,
     "second_jaw": 2, "has_baleen": 2, "two_bodied": 2, "lipless": 2,
 }
+
+# Shared roughly-doubling boundaries for diet_breadth AND marking_complexity
+# (lower bound inclusive, upper bound exclusive). One constant so the two
+# heads can never drift apart.
+VOCAB_DIET_BOUNDARIES = [16000, 48000, 100000, 200000, 400000]
 LAYER1_HEADS = HEADS[:11]
 LAYER2_HEADS = HEADS[11:]
 
@@ -192,7 +197,8 @@ def body_size_class(n_params: float) -> int:
 
 
 def condition_class(quant: str) -> int:
-    """0 pristine, 1 immaculate, 2 well-preserved, 3 worn, 4 patchy, 5 shrunken."""
+    """Health ladder: 0 ideally muscled, 1 robust, 2 malnourished, 3 thin,
+    4 gaunt, 5 emaciated (lowest quant)."""
     return {6: 0, 5: 1, 4: 2, 3: 2, 2: 3, 1: 4, 0: 5}[quant_ordinal(quant)]
 
 
@@ -239,11 +245,13 @@ def body_length_class(n_layers: int) -> int:
 
 
 def diet_class(vocab_size: int) -> int:
-    if vocab_size < 32000:
-        return 0
-    if vocab_size <= 128000:
-        return 1
-    return 2
+    """6-class diet breadth from vocab size using the shared boundary ladder:
+    0 obligate specialist, 1 picky browser, 2 generalist forager,
+    3 broad-spectrum omnivore, 4 bulk browser, 5 all-eater/baleen strainer."""
+    for i, edge in enumerate(VOCAB_DIET_BOUNDARIES):
+        if vocab_size < edge:
+            return i
+    return 5
 
 
 # ---------------------------------------------------------------------------
@@ -303,6 +311,10 @@ def gradient_pattern_id(rope_freq_base: float) -> int:
 
 
 def marking_complexity_id(vocab_size: int) -> int:
+    """6-class marking complexity; shares VOCAB_DIET_BOUNDARIES with
+    diet_class so the two ladders can never drift apart:
+    0 plain coat, 1 faint markings, 2 modest markings, 3 bold patterning,
+    4 intricate plumage, 5 extreme ornate display."""
     return diet_class(vocab_size)
 
 
@@ -332,7 +344,7 @@ def teacher(meta) -> dict:
         "build": build_class(meta.d_ff, meta.d_model),
         "eye": eye_class(meta.n_heads, meta.n_kv_heads),
         "body_length": body_length_class(meta.n_layers),
-        "diet": diet_class(meta.vocab_size),
+        "diet_breadth": diet_class(meta.vocab_size),
         "has_vision": int(meta.has_vision),
         "has_audio": int(meta.has_audio),
         "is_moe": int(meta.is_moe),

@@ -124,7 +124,9 @@ def main(argv=None):
 
     i = sub.add_parser("infer", help="describe a GGUF file or synthetic record")
     i.add_argument("--gguf")
-    i.add_argument("--synthetic", help="JSON record, e.g. '{\"n_params\": 1e9, ...}'")
+    i.add_argument("--synthetic", help="JSON record, e.g. '{\"n_params\": 1e9, "
+                   "\"quant\": \"Q4_K_M\", \"context\": 4096, \"vision\": true, "
+                   "\"architecture\": \"qwen2\", \"vocab\": 151936}'")
     i.add_argument("--ckpt", default="model.pt")
     i.add_argument("--device", default="cpu")
 

@@ -161,7 +161,7 @@ class TestLayer1Teacher(unittest.TestCase):
         self.assertEqual(rules.body_length_class(80), 3)
         self.assertEqual(rules.diet_class(32000), 1)
         self.assertEqual(rules.diet_class(8000), 0)
-        self.assertEqual(rules.diet_class(200000), 2)
+        self.assertEqual(rules.diet_class(200000), 4)  # v5: bulk browser
 
 
 class TestLayer2Teacher(unittest.TestCase):
@@ -205,6 +205,44 @@ class TestLayer2Teacher(unittest.TestCase):
         # partial_rope overrides everything
         self.assertEqual(rules.headgear_id("yarn", True), 4)
         self.assertEqual(rules.headgear_id("none", True), 4)
+
+    def test_diet_breadth_boundaries(self):
+        # v5 6-class ladder, lower bound inclusive / upper exclusive
+        self.assertEqual(rules.diet_class(15999), 0)    # obligate specialist
+        self.assertEqual(rules.diet_class(16384), 1)    # picky browser
+        self.assertEqual(rules.diet_class(100352), 3)   # broad-spectrum omnivore
+        self.assertEqual(rules.diet_class(399999), 4)   # bulk browser
+        self.assertEqual(rules.diet_class(400000), 5)   # all-eater
+        # marking_complexity resolves from the SAME boundaries
+        self.assertEqual(rules.marking_complexity_id(16384), 1)   # faint
+        self.assertEqual(rules.marking_complexity_id(400000), 5)  # extreme ornate
+        self.assertEqual(rules.marking_complexity_id(15999), 0)   # plain coat
+
+
+class TestSharedDietMarkingBoundaries(unittest.TestCase):
+    def test_diet_and_marking_share_one_boundary_constant(self):
+        sweep = [1, 8192, 15999, 16000, 16384, 47999, 48000, 65536, 99999,
+                 100000, 100352, 199999, 200000, 262144, 399999, 400000,
+                 512000, 1000000]
+        for v in sweep:
+            self.assertEqual(rules.diet_class(v),
+                             rules.marking_complexity_id(v),
+                             f"drift at vocab={v}")
+
+
+class TestCheckpointIncompatibility(unittest.TestCase):
+    def test_v4_checkpoint_rejected(self):
+        import torch
+        from gguf_zoo.model import CreatureNet
+        stub = CreatureNet().state_dict()
+        # simulate a v4 checkpoint: 3-class marking head + legacy diet key
+        stub["heads.marking_complexity.2.weight"] = torch.zeros(3, 128)
+        stub["heads.marking_complexity.2.bias"] = torch.zeros(3)
+        stub["heads.diet.2.weight"] = torch.zeros(3, 128)
+        stub["heads.diet.2.bias"] = torch.zeros(3)
+        with self.assertRaises(RuntimeError) as cm:
+            CreatureNet().load_state_dict(stub)
+        self.assertIn("v4", str(cm.exception))
 
 
 class TestRendererDeterminism(unittest.TestCase):

@@ -6,12 +6,11 @@ import random
 from .rules import SIZE_ANCHORS
 
 CONDITION = [
-    "pristine and freeze-dried", "immaculate", "well-preserved, slightly faded",
-    "worn-plumaged with a matte texture", "patchy-furred with clouded eyes",
-    "a shrunken-head museum relic",
+    "ideally muscled", "robust and well-muscled", "showing signs of malnourishment",
+    "thin, with ribs showing", "gaunt and hollow-flanked", "emaciated",
 ]
 GUT = [
-    "a hummingbird crop that demands frequent small feedings",
+    "a tiny crop that demands frequent small feedings",
     "a normal mammalian gut",
     "a ruminant fermentation chamber",
     "a whale gut for long, slow fermentations",
@@ -27,7 +26,20 @@ BODY_LENGTH = [
     "Tadpole-short", "Compact-bodied", "Deep-bodied",
     "Centipede-long along a deliberate neural path",
 ]
-DIET = ["a picky feeder", "a generalist", "an omnivore that eats anything"]
+DIET = [
+    ["an obligate specialist feeding on one substrate, gizzard stones prominent",
+     "an obligate specialist on a single food plant, anything unusual unrecognizable"],
+    ["a picky browser taking only a few favored foods close to home",
+     "a nectar specialist hovering near home, faithful to a few favored flowers"],
+    ["a generalist forager, eating familiar foods in the usual order",
+     "a competent scavenger of the known, picking familiar foods in order"],
+    ["a broad-spectrum omnivore that eats what others refuse",
+     "a bear-like omnivore, eating nearly everything edible"],
+    ["a bulk browser cropping the whole canopy with enormous variety per meal",
+     "an indiscriminate bulk browser, giraffe-grade variety in every mouthful"],
+    ["an all-eater straining every script from the water, refusing nothing",
+     "a baleen strainer of the deep, filtering everything, refusing nothing"],
+]
 INTEGUMENT = [
     "chitinous exoskeleton plating - segmented, state-carrying plates",
     "spiny porcupine-quill coverage, only a few spines raised at once",
@@ -46,8 +58,17 @@ TINT = ["arctic white and pale", "tropical vivid", "temperate green",
 FASTNESS = ["colors true to life", "sun-faded", "bleached museum-drawer pale"]
 GRADIENT = ["a slow gradient from dark head to pale tail", "even coloration",
             "banded and striped"]
-MARKING = ["a plain coat", "modest markings",
-           "intricate, every-feather-different patterning"]
+MARKING = [
+    ["a plain coat with no markings", "an unmarked pelt"],
+    ["faint spots and stripes", "ghosted markings, barely visible"],
+    ["modest markings", "restrained, modest patterning"],
+    ["bold patterning", "striking bold patterning"],
+    ["intricate, every-feather-different plumage", "meticulous intricate plumage"],
+    ["an extreme ornate bird-of-paradise display", "over-the-top ornate display plumage"],
+]
+MARKING_SHORT = ["plain coat", "faint markings", "modest markings",
+                 "bold patterning", "intricate plumage",
+                 "extreme ornate bird-of-paradise display"]
 HEADGEAR = ["hornless", "a pair of simple unbranched spikes",
             "a full antler crown with many tines", "an asymmetric rack",
             "a single horn - a one-sided rack"]
@@ -132,7 +153,7 @@ def render(meta, profile: dict) -> tuple:
     s2 = (f"It {rng.choice(WEARS)} {integ_txt}, colored {PALETTE[int(profile['palette'])]}"
           f" washed with a {TINT[int(profile['habitat_tint'])]} habitat tint; "
           f"{FASTNESS[int(profile['fastness'])]}, {GRADIENT[int(profile['gradient_pattern'])]},"
-          f" with {MARKING[int(profile['marking_complexity'])]}.")
+          f" with {rng.choice(MARKING[int(profile['marking_complexity'])])}.")
 
     face_bits = [f"the face is {HEADGEAR[int(profile['headgear'])]} ({EAR[int(profile['ear_size'])]})"]
     if int(profile["second_jaw"]):
@@ -151,7 +172,7 @@ def render(meta, profile: dict) -> tuple:
 
     if int(profile["is_subterranean"]):
         s5 = (f"Blind and deaf, it is a vibration-sensing subterranean mammal, "
-              f"foraging as {DIET[int(profile['diet'])]}.")
+              f"foraging as {rng.choice(DIET[int(profile['diet_breadth'])])}.")
     else:
         sensory = []
         if int(profile["has_vision"]):
@@ -161,7 +182,8 @@ def render(meta, profile: dict) -> tuple:
         senses = EYE[int(profile["eye"])]
         if sensory:
             senses += ", augmented by " + " and ".join(sensory)
-        s5 = f"Its senses: {senses}; it forages as {DIET[int(profile['diet'])]}."
+        s5 = (f"Its senses: {senses}; it forages as "
+              f"{rng.choice(DIET[int(profile['diet_breadth'])])}.")
 
     eco = []
     if int(profile["is_moe"]):
@@ -208,6 +230,7 @@ def render(meta, profile: dict) -> tuple:
         PALETTE[int(profile["palette"])],
         f"{TINT[int(profile['habitat_tint'])]} habitat tint",
         _texture_short(integ),
+        MARKING_SHORT[int(profile["marking_complexity"])],
         _headgear_short(int(profile["headgear"])),
         EAR[int(profile["ear_size"])],
         ", ".join(sensory_bits) if sensory_bits else EYE[int(profile["eye"])],

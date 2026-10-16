@@ -142,7 +142,7 @@ def evaluate(data_dir="data", ckpt="model.pt", device="auto", verbose=True):
             if accs[h] < target:
                 ok = False
             print(f"  {flag} {h:20s} {accs[h] * 100:6.2f}%  (target {target * 100:.0f}%)")
-        for h in ("body_size", "integument"):
+        for h in ("body_size", "integument", "diet_breadth"):
             _confusion(logits[h].argmax(1), Y[:, HEADS.index(h)], h)
         print("all targets met" if ok else "SOME HEADS BELOW TARGET")
     return accs
