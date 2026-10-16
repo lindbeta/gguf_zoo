@@ -51,16 +51,6 @@ If `--ckpt` is missing, `infer` warns and falls back to the teacher rules.
 `make_demo_gguf.py` writes `examples/qwen2-1.5b-demo.gguf`, a realistic
 synthetic GGUF (full tensor table, 151,936-token vocab) for demos.
 
-### Migrating from v4
-
-v5 widened `diet_breadth` and `marking_complexity` from 3 to 6 classes, so
-**v4 checkpoints are rejected by design** (loading one raises "checkpoint is
-v4 (3-class diet/markings); regenerate data and retrain."). After pulling
-this change: `python gguf_zoo.py gen-data && python gguf_zoo.py train` to
-produce a v5 checkpoint. The synthetic generator's vocab sampling also
-changed (expanded + correlated with language count), so old data is invalid
-too.
-
 ## GPU / CPU behavior
 
 - `get_device()` picks CUDA → MPS → CPU; `--device` overrides with a clear
