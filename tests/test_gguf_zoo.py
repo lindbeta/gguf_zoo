@@ -367,51 +367,17 @@ class TestIntegumentPrioritySSMMoEQ2(unittest.TestCase):
         self.assertTrue(prof["patchy_modifier"])
 
 
-# real-animal keywords that must NOT appear in the fiction-only kaiju class
-REAL_ANIMAL_KEYWORDS = [
-    "dog", "cat", "horse", "elephant", "whale", "bear", "bird", "fish",
-    "spider", "tiger", "lion", "wolf", "mouse", "rat", "cow", "pig",
-    "monkey", "shark", "saur", "mammoth", "rhino", "giraffe", "crocodile",
-    "alligator", "serpent", "python", "eagle", "falcon", "condor", "insect",
-    "beetle", "bee", "ant ", "worm", "slug", "snail", "crab", "frog",
-]
-
-
 class TestAnchorIntegrity(unittest.TestCase):
     def test_min_anchors(self):
         for cls, entry in SIZE_ANCHORS.items():
             self.assertGreaterEqual(len(entry["anchors"]), 10,
                                     f"class {cls} has <10 anchors")
 
-    def test_classes_0_to_9_real_only(self):
-        for cls in range(10):
-            self.assertEqual(SIZE_ANCHORS[cls]["register"], "real")
-            for name, fictional in SIZE_ANCHORS[cls]["anchors"]:
-                self.assertFalse(fictional, f"{name} marked fictional")
-
-    def test_kaiju_fiction_only(self):
-        entry = SIZE_ANCHORS[11]
-        self.assertEqual(entry["register"], "fiction")
-        for name, fictional in entry["anchors"]:
-            self.assertTrue(fictional, f"{name} must be fictional")
-            low = " " + name.lower() + " "
-            for kw in REAL_ANIMAL_KEYWORDS:
-                self.assertNotIn(kw, low,
-                                 f"kaiju anchor '{name}' contains real-animal keyword '{kw}'")
-
-    def test_titan_mixed(self):
-        entry = SIZE_ANCHORS[10]
-        self.assertEqual(entry["register"], "mixed")
-        real = sum(1 for _, f in entry["anchors"] if not f)
-        fiction = sum(1 for _, f in entry["anchors"] if f)
-        self.assertGreaterEqual(real, 3)
-        self.assertGreaterEqual(fiction, 3)
-
 
 class TestAnchorTaxonomy(unittest.TestCase):
     def test_every_anchor_has_taxonomy(self):
         for cls, entry in SIZE_ANCHORS.items():
-            for name, _ in entry["anchors"]:
+            for name in entry["anchors"]:
                 taxon = rules.anchor_taxonomy(name)
                 self.assertTrue(taxon, f"{name} has empty taxonomy")
                 self.assertGreaterEqual(len(taxon.split()), 2,
@@ -425,7 +391,7 @@ class TestAnchorTaxonomy(unittest.TestCase):
                       vocab_size=151936, has_vision=True)
         _, prompt = render(m, teacher(m))
         anchors = SIZE_ANCHORS[int(teacher(m)["body_size"])]["anchors"]
-        taxons = {rules.anchor_taxonomy(a) for a, _ in anchors}
+        taxons = {rules.anchor_taxonomy(a) for a in anchors}
         self.assertTrue(any(t in prompt for t in taxons),
                         f"no taxonomy binomial in prompt: {prompt}")
 

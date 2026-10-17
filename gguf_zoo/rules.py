@@ -6,92 +6,70 @@ network learns to reproduce these labels from the feature vector.
 import math
 
 # ---------------------------------------------------------------------------
-# Size ladder: class index -> register + anchor creatures.
-# anchors: list of (display_name, is_fictional)
-# registers: real (classes 0-9), mixed (10 titan), fiction (11 kaiju)
+# Size ladder: class index -> size-class name + anchor creatures.
+# anchors: list of display names
 # ---------------------------------------------------------------------------
 SIZE_ANCHORS = {
-    0: {"name": "virus-bacteria", "register": "real", "anchors": [
-        ("influenza virion", False), ("E. coli", False), ("amoeba", False),
-        ("paramecium", False), ("yeast cell", False), ("rotifer", False),
-        ("tardigrade", False), ("nematode", False), ("dust mite", False),
-        ("springtail", False), ("copepod", False), ("brine shrimp", False)]},
-    1: {"name": "microbe-midge", "register": "real", "anchors": [
-        ("fairyfly", False), ("thrips", False), ("aphid", False), ("flea", False),
-        ("feather louse", False), ("whale louse", False), ("seed shrimp", False),
-        ("fungus gnat", False), ("mosquito", False), ("blackfly", False),
-        ("small wasp", False), ("fruit fly", False)]},
-    2: {"name": "worm-gnat", "register": "real", "anchors": [
-        ("earthworm", False), ("mealworm larva", False), ("caterpillar", False),
-        ("garden slug", False), ("snail", False), ("woodlouse", False),
-        ("bed bug", False), ("silverfish", False), ("earwig", False),
-        ("small spider", False), ("harvestman", False), ("small cricket", False)]},
-    3: {"name": "housefly-honeybee", "register": "real", "anchors": [
-        ("housefly", False), ("honeybee", False), ("bumblebee", False),
-        ("paper wasp", False), ("ladybird", False), ("ground beetle", False),
-        ("cockroach", False), ("cricket", False), ("grasshopper", False),
-        ("dragonfly", False), ("monarch butterfly", False), ("zebrafish", False),
-        ("spring peeper frog", False), ("anole lizard", False)]},
-    4: {"name": "scorpion-songbird", "register": "real", "anchors": [
-        ("scorpion", False), ("tarantula", False), ("hermit crab", False),
-        ("shore crab", False), ("goldfish", False), ("killifish", False),
-        ("tree frog", False), ("gecko", False), ("wren", False), ("finch", False),
-        ("sparrow", False), ("blackbird", False), ("vole", False), ("shrew", False),
-        ("pygmy rabbit", False), ("hatchling turtle", False)]},
-    5: {"name": "rat-hawk", "register": "real", "anchors": [
-        ("brown rat", False), ("black rat", False), ("guinea pig", False),
-        ("squirrel", False), ("chipmunk", False), ("ferret", False),
-        ("weasel", False), ("hedgehog", False), ("opossum", False),
-        ("pigeon", False), ("crow", False), ("magpie", False), ("kestrel", False),
-        ("merlin", False), ("marmoset", False)]},
-    6: {"name": "cat-pig", "register": "real", "anchors": [
-        ("domestic cat", False), ("beagle", False), ("border collie", False),
-        ("fox", False), ("raccoon", False), ("badger", False), ("beaver", False),
-        ("capybara", False), ("wallaby", False), ("bobcat", False),
-        ("ocelot", False), ("caracal", False), ("macaque", False),
-        ("baboon", False), ("pot-bellied pig", False), ("goat", False)]},
-    7: {"name": "ape-horse", "register": "real", "anchors": [
-        ("human", False), ("chimpanzee", False), ("bonobo", False),
-        ("gorilla", False), ("orangutan", False), ("grey wolf", False),
-        ("cougar", False), ("red deer", False), ("elk", False), ("donkey", False),
-        ("zebra", False), ("horse", False), ("steer", False),
-        ("black bear", False), ("Labrador retriever", False)]},
-    8: {"name": "bison-elephant", "register": "real", "anchors": [
-        ("American bison", False), ("white rhino", False), ("black rhino", False),
-        ("Indian rhino", False), ("hippo", False), ("giraffe", False),
-        ("polar bear", False), ("walrus", False), ("manatee", False),
-        ("beluga", False), ("camel", False), ("moose", False),
-        ("musk ox", False), ("Asian elephant", False)]},
-    9: {"name": "tyrannosaurus-sauropod", "register": "real", "anchors": [
-        ("Tyrannosaurus", False), ("Spinosaurus", False), ("Allosaurus", False),
-        ("Triceratops", False), ("Stegosaurus", False), ("Ankylosaurus", False),
-        ("Diplodocus", False), ("Camarasaurus", False), ("woolly mammoth", False),
-        ("woolly rhino", False), ("Paraceratherium", False),
-        ("giant ground sloth", False)]},
-    10: {"name": "titan", "register": "mixed", "anchors": [
-        ("Argentinosaurus", False), ("Patagotitan", False),
-        ("Dreadnoughtus", False), ("Supersaurus", False), ("Alamosaurus", False),
-        ("blue whale", False), ("fin whale", False), ("Perucetus colossus", False),
-        ("megalodon", False), ("Liopleurodon", False),
-        ("King Kong", True), ("Titanoboa maximus", True),
-        ("sea Leviathan", True), ("White Worm of Winterfell", True)]},
-    11: {"name": "kaiju", "register": "fiction", "anchors": [
-        ("Godzilla", True), ("King Ghidorah", True), ("Mothra", True),
-        ("Rodan", True), ("Mechagodzilla", True), ("Gigan", True),
-        ("Biollante", True), ("SpaceGodzilla", True), ("Destoroyah", True),
-        ("Shin Godzilla", True), ("Knifehead", True), ("Raiju", True),
-        ("Slattern", True), ("Otachi", True), ("The Elder", True),
-        ("Sachiel", True), ("Zeruel", True), ("Armisael", True),
-        ("Baltan", True), ("Zetton", True), ("Deep Sea King", True),
-        ("Colossal Titan", True)]},
+    0: {"name": "virus-bacteria", "anchors": [
+        "influenza virion", "E. coli", "amoeba", "paramecium", "yeast cell",
+        "rotifer", "tardigrade", "nematode", "dust mite", "springtail",
+        "copepod", "brine shrimp"]},
+    1: {"name": "microbe-midge", "anchors": [
+        "fairyfly", "thrips", "aphid", "flea", "feather louse", "whale louse",
+        "seed shrimp", "fungus gnat", "mosquito", "blackfly", "small wasp",
+        "fruit fly"]},
+    2: {"name": "worm-gnat", "anchors": [
+        "earthworm", "mealworm larva", "caterpillar", "garden slug", "snail",
+        "woodlouse", "bed bug", "silverfish", "earwig", "small spider",
+        "harvestman", "small cricket"]},
+    3: {"name": "housefly-honeybee", "anchors": [
+        "housefly", "honeybee", "bumblebee", "paper wasp", "ladybird",
+        "ground beetle", "cockroach", "cricket", "grasshopper", "dragonfly",
+        "monarch butterfly", "zebrafish", "spring peeper frog",
+        "anole lizard"]},
+    4: {"name": "scorpion-songbird", "anchors": [
+        "scorpion", "tarantula", "hermit crab", "shore crab", "goldfish",
+        "killifish", "tree frog", "gecko", "wren", "finch", "sparrow",
+        "blackbird", "vole", "shrew", "pygmy rabbit", "hatchling turtle"]},
+    5: {"name": "rat-hawk", "anchors": [
+        "brown rat", "black rat", "guinea pig", "squirrel", "chipmunk",
+        "ferret", "weasel", "hedgehog", "opossum", "pigeon", "crow", "magpie",
+        "kestrel", "merlin", "marmoset"]},
+    6: {"name": "cat-pig", "anchors": [
+        "domestic cat", "beagle", "border collie", "fox", "raccoon", "badger",
+        "beaver", "capybara", "wallaby", "bobcat", "ocelot", "caracal",
+        "macaque", "baboon", "pot-bellied pig", "goat"]},
+    7: {"name": "ape-horse", "anchors": [
+        "human", "chimpanzee", "bonobo", "gorilla", "orangutan", "grey wolf",
+        "cougar", "red deer", "elk", "donkey", "zebra", "horse", "steer",
+        "black bear", "Labrador retriever"]},
+    8: {"name": "bison-elephant", "anchors": [
+        "American bison", "white rhino", "black rhino", "Indian rhino",
+        "hippo", "giraffe", "polar bear", "walrus", "manatee", "beluga",
+        "camel", "moose", "musk ox", "Asian elephant"]},
+    9: {"name": "tyrannosaurus-sauropod", "anchors": [
+        "Tyrannosaurus", "Spinosaurus", "Allosaurus", "Triceratops",
+        "Stegosaurus", "Ankylosaurus", "Diplodocus", "Camarasaurus",
+        "woolly mammoth", "woolly rhino", "Paraceratherium",
+        "giant ground sloth"]},
+    10: {"name": "titan", "anchors": [
+        "Argentinosaurus", "Patagotitan", "Dreadnoughtus", "Supersaurus",
+        "Alamosaurus", "blue whale", "fin whale", "Perucetus colossus",
+        "megalodon", "Liopleurodon", "King Kong", "Titanoboa maximus",
+        "sea Leviathan", "White Worm of Winterfell"]},
+    11: {"name": "kaiju", "anchors": [
+        "Godzilla", "King Ghidorah", "Mothra", "Rodan", "Mechagodzilla",
+        "Gigan", "Biollante", "SpaceGodzilla", "Destoroyah", "Shin Godzilla",
+        "Knifehead", "Raiju", "Slattern", "Otachi", "The Elder", "Sachiel",
+        "Zeruel", "Armisael", "Baltan", "Zetton", "Deep Sea King",
+        "Colossal Titan"]},
 }
 
 BODY_SIZE_EDGES = [1e8, 5e8, 1e9, 5e9, 2e10, 1e11, 5e11, 1e12, 5e12, 2e13, 1e14]
 
 # Linnaean binomials for every anchor creature, keyed by anchor display name.
-# Real (and extinct) animals get their real scientific names; fictional
-# register anchors get mock-Latin binomials, consistent with the
-# "fictional register" labeling. Used by the renderer in the image prompt.
+# Real (and extinct) animals get their real scientific names; legendary
+# anchors get mock-Latin coinages. Used by the renderer in the image prompt.
 ANCHOR_TAXONOMY = {
     # 0 virus-bacteria
     "influenza virion": "Alphainfluenzavirus influenzae",
@@ -252,12 +230,12 @@ ANCHOR_TAXONOMY = {
     "Perucetus colossus": "Perucetus colossus",
     "megalodon": "Otodus megalodon",
     "Liopleurodon": "Liopleurodon ferox",
-    # 10 titan - fictional register (mock-Latin)
+    # 10 titan - legendary anchors (mock-Latin)
     "King Kong": "Megaprimatus kong",
     "Titanoboa maximus": "Titanoboa maximus",
     "sea Leviathan": "Leviathan maritimus",
     "White Worm of Winterfell": "Vermis albus",
-    # 11 kaiju (fiction only, mock-Latin)
+    # 11 kaiju (mock-Latin)
     "Godzilla": "Godzillasaurus gojirae",
     "King Ghidorah": "Ghidorus tricephalus",
     "Mothra": "Mothra pulchella",
@@ -284,8 +262,7 @@ ANCHOR_TAXONOMY = {
 
 
 def anchor_taxonomy(name: str) -> str:
-    """Linnaean binomial for an anchor creature (mock-Latin for the
-    fictional register)."""
+    """Linnaean binomial for an anchor creature."""
     return ANCHOR_TAXONOMY[name]
 
 # label vocabularies (index -> prose handled in render.py)

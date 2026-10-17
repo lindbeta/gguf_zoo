@@ -74,17 +74,10 @@ def render(meta, profile: dict, name: str = None) -> tuple:
     cls = int(profile["body_size"])
     entry = SIZE_ANCHORS[cls]
     anchors = entry["anchors"]
-    anchor, fictional = anchors[pick_index(h, f"anchor:{cls}", len(anchors))]
+    anchor = anchors[pick_index(h, f"anchor:{cls}", len(anchors))]
     size_phrase = pick_slot(h, "size_phrase").format(a=anchor)
 
-    reg = entry["register"]
-    if reg == "fiction":
-        reg_note = f" ({entry['name']}-class, beyond any living creature, fictional register)"
-    elif reg == "mixed":
-        reg_note = (f" ({entry['name']}-class, mixed real-and-legendary register"
-                    + (", a creature of legend" if fictional else "") + ")")
-    else:
-        reg_note = ""
+    reg_note = f" ({entry['name']}-class)" if cls >= 10 else ""
 
     integ = int(profile["integument"])
     patchy = bool(profile.get("patchy_modifier", int(profile["condition"]) in (4, 5)))

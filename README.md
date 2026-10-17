@@ -99,27 +99,25 @@ Measured on an RTX 3090: `gen-data` (200K) ≈ 45 s, `train` 60 epochs ≈ 65 s
 
 ## The size ladder (Layer 1, `body_size`)
 
-| n_params | class | register |
-|---|---|---|
-| < 100M | virus-bacteria | real |
-| < 500M | microbe-midge | real |
-| < 1B | worm-gnat | real |
-| < 5B | housefly-honeybee | real |
-| < 20B | scorpion-songbird | real |
-| < 100B | rat-hawk | real |
-| < 500B | cat-pig | real |
-| < 1T | ape-horse | real |
-| < 5T | bison-elephant | real |
-| < 20T | tyrannosaurus-sauropod | real (extinct) |
-| < 100T | titan | mixed real + fictional |
-| ≥ 100T | kaiju | fiction only |
+| n_params | class |
+|---|---|
+| < 100M | virus-bacteria |
+| < 500M | microbe-midge |
+| < 1B | worm-gnat |
+| < 5B | housefly-honeybee |
+| < 20B | scorpion-songbird |
+| < 100B | rat-hawk |
+| < 500B | cat-pig |
+| < 1T | ape-horse |
+| < 5T | bison-elephant |
+| < 20T | tyrannosaurus-sauropod |
+| < 100T | titan |
+| ≥ 100T | kaiju |
 
 ### Anchor lists
 
 The renderer picks one anchor per output via a hash of the metadata
-(deterministic per file, varied across files). Classes 0–9 use only
-real/extinct animals; **titan** mixes the largest known animals with
-same-scale fictional creatures; **kaiju** uses ONLY fictional kaiju.
+(deterministic per file, varied across files).
 
 | Class | Anchors |
 |---|---|
@@ -133,8 +131,8 @@ same-scale fictional creatures; **kaiju** uses ONLY fictional kaiju.
 | ape-horse | human, chimpanzee, bonobo, gorilla, orangutan, grey wolf, cougar, red deer, elk, donkey, zebra, horse, steer, black bear, Labrador retriever |
 | bison-elephant | American bison, white rhino, black rhino, Indian rhino, hippo, giraffe, polar bear, walrus, manatee, beluga, camel, moose, musk ox, Asian elephant |
 | tyrannosaurus-sauropod | Tyrannosaurus, Spinosaurus, Allosaurus, Triceratops, Stegosaurus, Ankylosaurus, Diplodocus, Camarasaurus, woolly mammoth, woolly rhino, Paraceratherium, giant ground sloth |
-| **titan** (mixed) | Argentinosaurus, Patagotitan, Dreadnoughtus, Supersaurus, Alamosaurus, blue whale, fin whale, Perucetus colossus, megalodon, Liopleurodon, **King Kong (MonsterVerse)**, **Titanoboa maximus (fictional giant-serpent register)**, **How to Train Your Dragon sea Leviathan**, **White Worm of Winterfell** |
-| **kaiju** (fiction only) | **Godzilla, King Ghidorah, Mothra, Rodan, Mechagodzilla, Gigan, Biollante, SpaceGodzilla, Destoroyah, Shin Godzilla** (Toho); **Knifehead, Raiju, Slattern, Otachi, The Elder** (Pacific Rim); **Sachiel, Zeruel, Armisael** (Evangelion); **Baltan, Zetton** (Ultraman); **Deep Sea King** (One Punch Man); **Colossal Titan** (Attack on Titan) |
+| titan | Argentinosaurus, Patagotitan, Dreadnoughtus, Supersaurus, Alamosaurus, blue whale, fin whale, Perucetus colossus, megalodon, Liopleurodon, King Kong (MonsterVerse), Titanoboa maximus, How to Train Your Dragon sea Leviathan, White Worm of Winterfell |
+| kaiju | Godzilla, King Ghidorah, Mothra, Rodan, Mechagodzilla, Gigan, Biollante, SpaceGodzilla, Destoroyah, Shin Godzilla (Toho); Knifehead, Raiju, Slattern, Otachi, The Elder (Pacific Rim); Sachiel, Zeruel, Armisael (Evangelion); Baltan, Zetton (Ultraman); Deep Sea King (One Punch Man); Colossal Titan (Attack on Titan) |
 
 ## Layer 1 — structural anatomy rules
 
@@ -376,9 +374,10 @@ also prints confusion matrices for `body_size`, `integument`, and
 (`examples/qwen2-1.5b-demo.gguf`) — jade-and-vermilion, **broad-spectrum
 omnivore** (151936 → class 3), layered fur coat, antler crown:
 
-> A spring peeper frog-sized creature, hollow-backed and lean. It is clad in
-> a thick double fur coat; a variegated integument, fur on the torso and
-> scales on the limbs, colored jade with vermilion accents washed with an
+> *Qwenapis pilosa cornuta qwen2* — a hairy, horned insect of the written
+> word. A spring peeper frog-sized creature, hollow-backed and lean. It is
+> clad in a thick double fur coat; a variegated integument, fur on the torso
+> and scales on the limbs, colored jade with vermilion accents washed with an
 > ink-dark jade tint; colors softened and washed, a dark-to-pale fade along
 > the back, with loud, confident patterning. On the head, the face is a
 > branching antler crown (enormous tufted ears); 3 sensory whisker-bristles
@@ -398,78 +397,86 @@ resting, coiled, macro photography
 **(b) 70B Q8_0 128K text-only llama, 32K vocab** (70B falls in the rat-hawk
 band; 32K vocab → picky browser, faint markings):
 
-> A crow-scale frame, thick-set and strong. It carries uniform, independent,
-> overlapping scales, colored desert tan and sand washed with a quiet
-> temperate tint; colors sharp and true, a slow gradient from dark head to
-> pale tail, with ghosted spots, barely visible. [...] A long, many-segmented
-> body, thick-bodied, a true bulk digestor, it carries a ruminant
-> fermentation chamber. Blind and deaf, it is a vibration-sensing
-> subterranean mammal, foraging as a picky browser taking only a few favored
-> foods close to home.
+> *Llamia squamata immaculata llama* — a scaled, immaculate small creature of
+> the written word. A creature sized like a crow, robust and well-muscled. It
+> is clad in a mosaic of overlapping scales, colored dusty sand-brown washed
+> with a temperate green tint; full, honest color, an even tone throughout,
+> with the faintest hint of spots. On the head, the face is entirely hornless
+> (great feathered ears); a lipless mouth. Segment upon segment, slow to
+> turn, broad and heavy through the chest, it carries a foregut built for
+> slow fermentation. Blind and deaf, it is a vibration-sensing subterranean
+> mammal, foraging as a picky browser taking only a few favored foods close
+> to home.
 
 ```
 life-sized crow, Corvus corone, desert tan and sand, temperate green habitat
 tint, overlapping scales, faint markings, hornless head, big tufted ears,
-blind vibration-sensing face, standing alert in three-quarter view,
+blind vibration-sensing face, head-and-shoulders portrait,
 natural-history illustration
 ```
 
-
 **(c) 671B MoE Q4_K_M deepseek, 102K vocab** — ink-black-and-gold
 termite-mound beast, ape-to-horse sized, quill-covered, bold patterning,
-cutaway plate style:
+cutaway plate style (which also triggers the specimen plaque):
 
-> A steer-scale frame, gaunt at the shoulders. It is clad in quilled armor
-> that bristles selectively, colored ink-dark with gilded edges washed with a
-> quiet temperate tint; a sun-washed palette, uniform color from head to
-> tail, with bold patterning. [...] A deep, spacious torso, sinewed and lean,
-> it carries a foregut built for slow fermentation. Blind and deaf, it is a
-> vibration-sensing subterranean mammal, foraging as a bear-like omnivore,
-> eating nearly everything edible. Ecology: inside, hundreds of tiny
-> hexagonal digestive chambers fire only a few at a time, a termite-mound
-> beast.
+> *Favferus setosus magaventer deepseek_v3* — a quilled, big-gutted mammal of
+> the written word. A donkey-scale frame, gaunt at the shoulders. It wears
+> spiny porcupine-quill coverage, only a few spines raised at once, colored
+> ink black with gold washed with an ink-dark jade tint; a sun-washed
+> palette, even coloration, with striking bold patterning. On the head, the
+> face is entirely hornless (mid-sized ears); a lipless mouth. Long and deep
+> through the barrel, sinewed and lean, it carries a vast lower gut for
+> marathon digestion. Blind and deaf, it is a vibration-sensing subterranean
+> mammal, foraging as a broad-spectrum omnivore that eats what others
+> refuse. Ecology: inside, hundreds of tiny hexagonal digestive chambers fire
+> only a few at a time, a termite-mound beast.
 
 ```
-life-sized steer, Bos taurus, ink black with gold, temperate green habitat
-tint, porcupine quills, bold patterning, hornless head, moderate ears, blind
-vibration-sensing face, resting, coiled, natural-history illustration,
-scientific cutaway plate
+donkey-sized creature, Equus asinus, ink black with gold, jade-and-ink
+habitat tint, porcupine quills, bold patterning, hornless head, moderate
+ears, blind vibration-sensing face, resting, coiled, natural-history
+illustration, scientific cutaway plate, museum specimen plaque reading
+"Favferus setosus magaventer" in serif type
 ```
 
 **(d) 200T synthetic record** — kaiju-class:
 
-> A creature the size of a Biollante (kaiju-class, beyond any living
-> creature, fictional register), running to sinew and bone. It carries a
-> dense pelt of layered fur, colored dusty sand-brown washed with a quiet
-> temperate tint [...] Centipede-long along a deliberate neural path, built
-> like a grain-fed draft animal, it carries a normal mammalian gut. Blind
-> and deaf, it is a vibration-sensing subterranean mammal, foraging as a
-> broad-spectrum omnivore that eats what others refuse.
+> *Llamarex pilosus fuscus llama* — a hairy, sandy titan of the written word.
+> A creature the size of a Knifehead (kaiju-class), gaunt at the shoulders.
+> It is clad in a dense pelt of layered fur, colored sun-baked sand tones
+> washed with a temperate green tint; a sun-washed palette, even coloration,
+> with striking bold patterning. On the head, the face is entirely hornless
+> (big tufted ears); a lipless mouth. A long, many-segmented body, built like
+> a grain-fed draft animal, it carries a normal mammalian gut. Blind and
+> deaf, it is a vibration-sensing subterranean mammal, foraging as a
+> bear-like omnivore, eating nearly everything edible.
 
 ```
-life-sized Biollante, Biollante plantaris, desert tan and sand, temperate
-green habitat tint, layered woven fur, bold patterning, hornless head, big
-tufted ears, blind vibration-sensing face, resting, coiled, cinematic kaiju
-film still, city skyline for scale, dramatic low-angle, Toho/Pacific Rim
-creature-design style
+life-sized Knifehead, Cultellum maris, desert tan and sand, temperate green
+habitat tint, layered woven fur, bold patterning, hornless head, big tufted
+ears, blind vibration-sensing face, standing alert in three-quarter view,
+cinematic kaiju film still, city skyline for scale, dramatic low-angle,
+Toho/Pacific Rim creature-design style
 ```
 
 **(e) 8B single-language model with an 8K vocab** — obligate specialist,
 no markings (8192 → class 0):
 
-> A vole-scale frame, thin, with ribs showing. It wears a dense pelt of
-> layered fur, colored dusty sand-brown washed with a mild leaf-green tint;
-> colors washed by the sun, an even tone throughout, with not a single mark.
-> [...] Short-backed, tidy, broad and heavy through the chest, it carries a
-> straightforward digestive tract. Blind and deaf, it is a vibration-sensing
-> subterranean mammal, foraging as an obligate specialist feeding on one
-> substrate only.
+> *Llamaiola pilosa parviventris llama* — a hairy, slim-gutted small creature
+> of the written word. A tarantula-scale frame, running to sinew and bone. It
+> sports a dense pelt of layered fur, colored desert tan and sand washed with
+> a quiet temperate tint; colors washed by the sun, uniform color from head to
+> tail, with not a single mark. On the head, the face is entirely hornless
+> (enormous tufted ears); a lipless mouth. Compact-bodied, well-proportioned,
+> it carries a small crop built for constant nibbling. Blind and deaf, it is
+> a vibration-sensing subterranean mammal, foraging as an obligate specialist
+> feeding on one substrate only.
 
 ```
-life-sized vole, Microtus agrestis, desert tan and sand, temperate green
-habitat tint, layered woven fur, plain coat, hornless head, big tufted ears,
-blind vibration-sensing face, head-and-shoulders portrait, natural-history
-illustration
+tarantula-scale creature, Theraphosa blondi, desert tan and sand, temperate
+green habitat tint, layered woven fur, plain coat, hornless head, big tufted
+ears, blind vibration-sensing face, dorsal and ventral views,
+natural-history illustration
 ```
 
 Image-prompt style scales with class: classes 0–3 macro photography; 4–7
@@ -477,8 +484,8 @@ natural-history illustration; 8–9 epic scale, dramatic low-angle; 10
 colossal scale, real-animal naturalism blended with creature-feature drama;
 11 cinematic kaiju film still, city skyline for scale, Toho/Pacific Rim
 creature-design style. The size phrase is immediately followed by the anchor's
-taxonomy binomial (`ANCHOR_TAXONOMY` in `rules.py`: real Latin names for real
-animals, mock-Latin coinages like *Biollante plantaris* for fictional ones).
+taxonomy binomial (`ANCHOR_TAXONOMY` in `rules.py`: real scientific names
+where they exist, mock-Latin coinages like *Biollante plantaris* otherwise).
 MoE adds "scientific cutaway plate"; split files add
 "dotted-line reconstruction"; quant_version 1 adds "sepia aged engraving";
 lossless quant adds "museum diorama, hyperreal".
@@ -489,7 +496,7 @@ lossless quant adds "museum diorama, hyperreal".
 uv run python -m unittest discover -s tests -v
 ```
 
-23 test methods in 11 groups: GGUF header round-trip, Layer-1 teacher spot
+31 test methods in 13 groups: GGUF header round-trip, Layer-1 teacher spot
 checks, Layer-2 teacher spot checks (integument priority, palette lookup,
 partial_rope headgear override, diet_breadth/marking boundaries), shared
 diet/marking boundary constant, v4-checkpoint rejection, renderer determinism
@@ -497,6 +504,8 @@ diet/marking boundary constant, v4-checkpoint rejection, renderer determinism
 hygiene (≥3 entries, lowercase fragments, no cross-trait keyword leakage, no
 preservation vocabulary), hash-stream determinism/decorrelation, CPU
 device-fallback training, SSM+MoE+Q2 → exoskeleton-with-patchy integument
-priority, and anchor-list integrity (≥10 anchors per class, classes 0–9
-real-only, kaiju fiction-only against a real-animal keyword blocklist, titan
-≥3 real + ≥3 fictional).
+priority, anchor-list integrity (≥10 anchors per class), anchor taxonomy
+coverage (every anchor has a binomial; the image prompt includes it), and
+Linnaean nomenclature (determinism, gender agreement, table integrity,
+epithet priority/skips, strict-mode registry, authority, year, speed,
+render/plaque integration).
