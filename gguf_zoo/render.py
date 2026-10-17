@@ -7,7 +7,8 @@ from .classifier import classify_input_type_consensus
 from .parser import ModelMeta, build_meta
 from .rules import (HEALTH_WORDS, HABITAT_NAMES, Die, QuantInfo, body_dimensions,
                     build_profile, estimate_params, extract_features,
-                    habitat_class, meta_hash, quant_info, size_tier)
+                    habitat_class, length_phrase, meta_hash, quant_info,
+                    size_tier)
 from .senses import VISIBLE_SENSES
 from .taxonomy import binomial, gloss
 
@@ -37,8 +38,8 @@ def _classify_inputs(meta: ModelMeta, seed: int, device: str):
 def _intro(meta, profile, qi, dims, die) -> str:
     anchor = die.choice(pools.TIER_ANCHORS.get(profile.body_size, pools.TIER_ANCHORS[6]))
     if dims:
-        size_sentence = (f"It measures about {dims[0]} from nose to tail and "
-                         f"weighs about {dims[1]}")
+        size_sentence = (f"It measures about {dims[0]} {length_phrase(anchor)} "
+                         f"and weighs about {dims[1]}")
     else:
         size_sentence = "Its size and weight resist measurement"
     parts = [

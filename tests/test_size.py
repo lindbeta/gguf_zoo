@@ -1,4 +1,5 @@
-from gguf_zoo.rules import body_dimensions, estimate_params, size_tier
+from gguf_zoo.rules import (body_dimensions, estimate_params, length_phrase,
+                            size_tier)
 
 
 def test_FR_4_1_all_boundaries():
@@ -52,3 +53,16 @@ def test_FR_4_6_monotonic():
         mv = float(m.split()[0]) * mass_u[m.split()[1]]
         assert lv >= prev_l and mv >= prev_m
         prev_l, prev_m = lv, mv
+
+
+def test_FR_4_6_length_phrase_matches_anatomy():
+    assert length_phrase("a full-grown grey wolf") == "from nose to tail"
+    assert length_phrase("a full-grown eagle") == "from beak to tail"
+    assert length_phrase("a young goldfish") == "from snout to tail"
+    assert length_phrase("a full-grown ladybird") == "from head to tail"
+    assert length_phrase("a young tree frog") == "from head to rump"
+    assert length_phrase("a full-grown earthworm") == "from end to end"
+    assert length_phrase("a full-grown paramecium") == "across"
+    assert length_phrase("a young soil mite") == "from end to end"
+    assert length_phrase("a full-grown silverfish") == "from head to tail"
+    assert length_phrase("a full-grown ocean-draining serpent") == "from snout to tail"

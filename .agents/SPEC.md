@@ -483,6 +483,11 @@ size and weight**, log-log interpolated from the estimated parameter count
 against an anchor ladder (bacterium ≈ 1 µm / 1 pg … kaiju ≈ 300 m / 50 Mt),
 formatted adaptively (µm/cm/m; µg/mg/g/kg/tonnes/megatonnes):
 `It measures about 2.5 m from nose to tail and weighs about 500.0 kg`.
+The measure phrase is anatomy-appropriate for the tier anchor (FR-4.6):
+`from nose to tail` (default), `from beak to tail` (birds), `from snout to
+tail` (fish/whales/serpents), `from head to tail` (insects/arachnids),
+`from head to rump` (frogs/newts), `from end to end` (worms/jellyfish/mites),
+`across` (viruses/microbes).
 When the param count is unclassifiable: `Its size and weight resist measurement`.
 
 ### FR-5 — Quant → physical condition

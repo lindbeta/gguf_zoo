@@ -96,7 +96,7 @@ Parameters   : ~1.3B  ->  size class: Small (housefly to honeybee)
 Quantization : Q4_K_M (Q4_K_M K-quant)  ->  condition: weathered
 ========================================================================
 
-A young ground beetle — a hairy, green insect of the written word. It measures about 0.7 cm from nose to tail and weighs about 8 mg. It wears a glaze of polished shell, colored milky opal under a highland heather bloom; colors that gleam wet then dull, a mottled blotch pattern, a plain back with a marked belly. On the head: a spined ridge from brow to nape with ears that fold flat; eyes that blink sideways. Short and thickset, round and barrel-girthed, it carries a liver-heavy digesting mass and forages as a browser of high leaves. It is terrestrial, bearing burrowing foreclaws, a low crawling gait.
+A young ground beetle — a hairy, green insect of the written word. It measures about 0.7 cm from head to tail and weighs about 8 mg. It wears a glaze of polished shell, colored milky opal under a highland heather bloom; colors that gleam wet then dull, a mottled blotch pattern, a plain back with a marked belly. On the head: a spined ridge from brow to nape with ears that fold flat; eyes that blink sideways. Short and thickset, round and barrel-girthed, it carries a liver-heavy digesting mass and forages as a browser of high leaves. It is terrestrial, bearing burrowing foreclaws, a low crawling gait.
 
 SENSES:
   • Sight          humming eyes like wet garnets that glow when fed

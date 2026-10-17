@@ -278,6 +278,40 @@ def body_dimensions(n_params: int | None) -> tuple[str, str] | None:
     return _fmt_length(length), _fmt_mass(mass)
 
 
+# FR-4.6 — how the length is measured depends on the anchor's body plan;
+# checked in order, first keyword hit wins (insects before birds so that
+# "ladybird" reads as an insect, insects before fish so "silverfish" reads
+# as an insect, etc.).
+_LENGTH_PHRASE_RULES = [
+    (("virus", "bacterium", "spore", "yeast", "plankton", "diatom",
+      "paramecium", "cyanobacterium", "protozoan", "amoeba"), "across"),
+    (("worm", "nematode", "planarian", "hydra", "jellyfish", "anemone",
+      "mite", "springtail", "rotifer", "slug"), "from end to end"),
+    (("gnat", "aphid", "thrips", "fly", "wasp", "blackfly", "mosquito",
+      "woodlouse", "silverfish", "spider", "midge", "mayfly", "caddisfly",
+      "ladybird", "beetle", "cockroach", "cricket", "scorpion", "tarantula",
+      "bee", "dragonfly", "flea", "copepod", "tick"), "from head to tail"),
+    (("bird", "wren", "finch", "sparrow", "swallow", "crow", "kestrel",
+      "pigeon", "magpie", "eagle", "condor", "swan", "crane", "stork",
+      "albatross", "pelican", "vulture", "penguin", "heron", "avis",
+      "Mothra"), "from beak to tail"),
+    (("frog", "toad", "newt", "salamander"), "from head to rump"),
+    (("fish", "trout", "whale", "dolphin", "manatee", "seal", "walrus",
+      "beluga", "mosasaur", "ichthyosaur", "plesiosaur", "serpent",
+      "leviathan", "shrimp", "crab", "krill", "megalodon", "perucetus",
+      "tadpole", "wyrm"), "from snout to tail"),
+]
+
+
+def length_phrase(anchor: str) -> str:
+    """FR-4.6: anatomy-appropriate measure phrase for a tier anchor."""
+    a = anchor.lower()
+    for keys, phrase in _LENGTH_PHRASE_RULES:
+        if any(k.lower() in a for k in keys):
+            return phrase
+    return "from nose to tail"
+
+
 def _quant_modifiers(name: str) -> list[str]:
     return [prose for rx, prose in QUANT_MODIFIERS if rx.search(name)]
 
