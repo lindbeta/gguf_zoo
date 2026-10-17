@@ -1,181 +1,160 @@
-"""argparse CLI for gguf-zoo."""
+"""argparse CLI for gguf-zoo (FR-10)."""
+from __future__ import annotations
+
 import argparse
-import datetime
 import json
-import os
 import sys
+from pathlib import Path
 
-import numpy as np
-import torch
-
-from . import rules
-from .model import CreatureNet, encode_features, resolve_device
-from .parser import ModelMeta, parse_gguf, classify_block_style
-from .render import render
-from .rules import HEADS, teacher
-
-
-def _meta_from_synthetic(spec: dict) -> ModelMeta:
-    m = ModelMeta()
-    m.architecture = str(spec.get("architecture", spec.get("arch", ""))).lower()
-    m.name = str(spec.get("name", "synthetic"))
-    m.language = str(spec.get("language", "")).lower()
-    m.quant_type = str(spec.get("quant", "unknown"))
-    m.quant_block_style = classify_block_style(m.quant_type)
-    m.quant_version = int(spec.get("quant_version", 3))
-    m.n_params = int(float(spec.get("n_params", 0)))
-    m.context_length = int(spec.get("context", spec.get("context_length", 0)))
-    m.n_layers = int(spec.get("layers", spec.get("n_layers", 0)))
-    m.d_model = int(spec.get("d_model", 0))
-    m.d_ff = int(spec.get("d_ff", 0))
-    m.n_heads = int(spec.get("n_heads", 0))
-    m.n_kv_heads = int(spec.get("n_kv_heads", 0))
-    m.head_dim = int(spec.get("head_dim", 0)) or (
-        (m.d_model // m.n_heads) if m.n_heads and m.d_model else 0)
-    m.vocab_size = int(spec.get("vocab", spec.get("vocab_size", 0)))
-    m.is_moe = bool(spec.get("moe", False))
-    m.has_vision = bool(spec.get("vision", False))
-    m.has_audio = bool(spec.get("audio", False))
-    m.is_multimodal = m.has_vision or m.has_audio
-    m.sliding_window = bool(spec.get("sliding_window", False))
-    m.has_ssm = bool(spec.get("ssm", False))
-    m.mixed_dtypes = bool(spec.get("mixed_dtypes", False))
-    m.rope_freq_base = float(spec.get("rope_freq_base", 10000))
-    m.rope_scaling_type = str(spec.get("rope_scaling", "none"))
-    m.partial_rope = bool(spec.get("partial_rope", False))
-    m.mtp_tensors = bool(spec.get("mtp", False))
-    m.n_special_tokens = int(spec.get("n_special_tokens", 0))
-    m.add_bos = bool(spec.get("add_bos", False))
-    m.add_eos = bool(spec.get("add_eos", False))
-    m.byte_fallback = bool(spec.get("byte_fallback", False))
-    m.pooling_type = str(spec.get("pooling", "") or "")
-    m.is_encoder_decoder = bool(spec.get("enc_dec", False))
-    m.n_split_files = int(spec.get("n_split_files", 1))
-    m.rms_epsilon = float(spec.get("rms_epsilon", 1e-5))
-    m.n_tensors = int(spec.get("n_tensors", 0))
-    return m
+from .attributes import (eval_attribute_classifier, train_attribute_classifier)
+from .classifier import classify_input_type_consensus, eval_classifier, train_classifier
+from .demo import demo_bytes
+from .parser import GGUFError, build_meta, read_metadata
+from .render import build_description
+from .senses import detect_input_types
 
 
-def _predict_profile(meta: ModelMeta, ckpt: str, device: str) -> dict:
-    dev = resolve_device(device)
-    ck = torch.load(ckpt, map_location=dev, weights_only=False)
-    model = CreatureNet().to(dev)
-    model.load_state_dict(ck["model"])
-    model.eval()
-    x = torch.from_numpy(encode_features(meta)).unsqueeze(0).to(dev)
-    with torch.no_grad():
-        logits = model(x)
-    profile = {h: int(logits[h].argmax(dim=1).item()) for h in HEADS}
-    profile["patchy_modifier"] = profile["condition"] in (4, 5)
-    return profile
+def _load_kv(args) -> tuple[dict, str]:
+    if getattr(args, "demo", False):
+        from .demo import demo_pairs
+        from .parser import parse_gguf_bytes
+        kv, _ = parse_gguf_bytes(demo_bytes())
+        return kv, "demo"
+    if getattr(args, "meta", None):
+        data = json.loads(Path(args.meta).read_text(encoding="utf-8"))
+        return data, args.meta
+    kv, _ = read_metadata(args.file)
+    return kv, args.file
 
 
-def _validate_infer(args):
-    """Check every infer argument before any work is performed."""
-    errs = []
-    if bool(args.gguf) == bool(args.synthetic):
-        errs.append("provide exactly one of --gguf or --synthetic")
-    if args.gguf and not os.path.isfile(args.gguf):
-        errs.append(f"--gguf file not found: {args.gguf}")
-    if args.synthetic:
-        try:
-            if not isinstance(json.loads(args.synthetic), dict):
-                raise ValueError("not a JSON object")
-        except ValueError as e:
-            errs.append(f"--synthetic is not valid JSON: {e}")
-    if errs:
-        for e in errs:
-            print(f"error: {e}", file=sys.stderr)
-        sys.exit(2)
+def cmd_infer(args) -> int:
+    chosen = [bool(args.file), bool(args.meta), bool(args.demo)]
+    if sum(chosen) != 1:
+        print("error: exactly one of <file>, --meta, or --demo is required",
+              file=sys.stderr)
+        return 2
+    if args.demo and args.save:
+        Path(args.save).write_bytes(demo_bytes())
+    try:
+        kv, _ = _load_kv(args)
+    except (GGUFError, OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(build_description(kv, device=args.device, params_override=args.params),
+          end="")
+    return 0
 
 
-def _do_infer(args):
-    _validate_infer(args)
-    if args.gguf:
-        meta = parse_gguf(args.gguf)
-        src = args.gguf
-        meta.year = datetime.date.fromtimestamp(
-            os.path.getmtime(args.gguf)).year
-    else:
-        meta = _meta_from_synthetic(json.loads(args.synthetic))
-        src = "synthetic record"
-
-    if args.ckpt and os.path.exists(args.ckpt):
-        profile = _predict_profile(meta, args.ckpt, args.device)
-        source = f"student model ({args.ckpt})"
-    else:
-        print(f"warning: checkpoint '{args.ckpt}' not found - falling back to "
-              f"teacher rules. Run 'python gguf_zoo.py train' first to use the "
-              f"neural student.", file=sys.stderr)
-        profile = teacher(meta)
-        source = "teacher rules (fallback)"
-
-    from . import taxonomy
-    name = taxonomy.binomial(profile, meta, strict=args.strict_names)
-    field, prompt = render(meta, profile, name=name)
-    print(f"=== gguf-zoo field guide ===")
-    print(f"source: {src}")
-    print(f"profile from: {source}")
-    print(f"architecture: {meta.architecture or '?'}  quant: {meta.quant_type}  "
-          f"params: {meta.n_params:,}  ctx: {meta.context_length:,}")
-    print()
-    print(f"NOMENCLATURE")
-    print(name)
-    print()
-    print("FIELD DESCRIPTION")
-    print(field)
-    print()
-    print("IMAGE PROMPT")
-    print(prompt)
+def cmd_train(args) -> int:
+    path = train_classifier(seed=args.seed, device=args.device, out_path=args.out)
+    print(f"trained -> {path}", file=sys.stderr)
+    return 0
 
 
-def main(argv=None):
-    p = argparse.ArgumentParser(prog="gguf-zoo",
-                                description="GGUF metadata -> creature field guide")
-    sub = p.add_subparsers(dest="cmd", required=True)
+def cmd_eval(args) -> int:
+    res = eval_classifier(device=args.device)
+    print(f"alias-grouped accuracy: {res['accuracy'] * 100:.2f}%")
+    labels = res["labels"]
+    print("confusion matrix (rows=true, cols=pred):")
+    print("      " + "".join(f"{l[:5]:>6}" for l in labels))
+    for i, l in enumerate(labels):
+        print(f"{l[:5]:>5} " + "".join(f"{v:6d}" for v in res["confusion"][i]))
+    ok = res["accuracy"] >= 0.95
+    print("all targets met" if ok else "BELOW TARGET")
+    return 0 if ok else 1
 
-    g = sub.add_parser("gen-data", help="generate synthetic training data")
-    g.add_argument("--n", type=int, default=200000)
-    g.add_argument("--out", default="data")
-    g.add_argument("--seed", type=int, default=42)
 
-    t = sub.add_parser("train", help="train the student network")
-    t.add_argument("--data", default="data")
-    t.add_argument("--epochs", type=int, default=None)
-    t.add_argument("--batch-size", type=int, default=None)
-    t.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
-    t.add_argument("--ckpt", default="model.pt")
-    t.add_argument("--seed", type=int, default=42)
+def cmd_train_attrs(args) -> int:
+    path = train_attribute_classifier(seed=args.seed, device=args.device,
+                                      out_path=args.out)
+    print(f"trained -> {path}", file=sys.stderr)
+    return 0
 
-    i = sub.add_parser("infer", help="describe a GGUF file or synthetic record")
-    i.add_argument("--gguf")
-    i.add_argument("--synthetic", help="JSON record, e.g. '{\"n_params\": 1e9, "
-                   "\"quant\": \"Q4_K_M\", \"context\": 4096, \"vision\": true, "
-                   "\"architecture\": \"qwen2\", \"vocab\": 151936}'")
-    i.add_argument("--ckpt", default="model.pt")
-    i.add_argument("--device", default="cpu")
-    i.add_argument("--strict-names", action="store_true",
-                   help="enforce unique binomials via the names.json registry")
 
-    e = sub.add_parser("evaluate", help="per-head accuracy on the test split")
-    e.add_argument("--data", default="data")
-    e.add_argument("--ckpt", default="model.pt")
-    e.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+def cmd_eval_attrs(args) -> int:
+    res = eval_attribute_classifier(device=args.device)
+    print(f"alias-grouped accuracy: {res['accuracy'] * 100:.2f}%")
+    labels = res["labels"]
+    print("confusion matrix (rows=true, cols=pred):")
+    print("      " + "".join(f"{l[:5]:>6}" for l in labels))
+    for i, l in enumerate(labels):
+        print(f"{l[:5]:>5} " + "".join(f"{v:6d}" for v in res["confusion"][i]))
+    ok = res["accuracy"] >= 0.95
+    print("all targets met" if ok else "BELOW TARGET")
+    return 0 if ok else 1
 
-    args = p.parse_args(argv)
-    if args.cmd == "gen-data":
-        from .data import generate_data
-        generate_data(args.n, args.out, args.seed)
-    elif args.cmd == "train":
-        from .train import train
-        train(args.data, args.epochs, args.batch_size, args.device,
-              args.ckpt, args.seed)
-    elif args.cmd == "infer":
-        _do_infer(args)
-    elif args.cmd == "evaluate":
-        from .train import evaluate
-        evaluate(args.data, args.ckpt, args.device)
+
+def cmd_senses(args) -> int:
+    res = classify_input_type_consensus(args.name, seed=args.seed, device=args.device)
+    print(f"{args.name!r} -> {res.sense} (conf={res.confidence:.2f}, {res.source})")
+    return 0
+
+
+def cmd_detect(args) -> int:
+    try:
+        kv, _ = read_metadata(args.file)
+    except (GGUFError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    meta = build_meta(kv)
+    for name in detect_input_types(meta):
+        res = classify_input_type_consensus(name, device=args.device)
+        print(f"{name:<12} -> {res.sense}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="gguf-zoo", description=__doc__)
+    sub = p.add_subparsers(dest="command", required=True)
+
+    infer = sub.add_parser("infer", help="generate a field-guide entry")
+    infer.add_argument("file", nargs="?", help="path to a .gguf file")
+    infer.add_argument("--meta", help="flat JSON of key->value metadata")
+    infer.add_argument("--demo", action="store_true", help="use a built-in demo model")
+    infer.add_argument("--save", help="write the demo GGUF bytes to PATH")
+    infer.add_argument("--params", type=int, help="override the parameter estimate")
+    infer.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    infer.set_defaults(func=cmd_infer)
+
+    tr = sub.add_parser("train-senses", help="train the sense classifier")
+    tr.add_argument("--out", default=None)
+    tr.add_argument("--seed", type=int, default=0)
+    tr.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    tr.set_defaults(func=cmd_train)
+
+    ev = sub.add_parser("eval-senses", help="evaluate the sense classifier")
+    ev.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    ev.set_defaults(func=cmd_eval)
+
+    ta = sub.add_parser("train-attributes", help="train the unmapped-field -> attribute classifier")
+    ta.add_argument("--out", default=None)
+    ta.add_argument("--seed", type=int, default=0)
+    ta.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    ta.set_defaults(func=cmd_train_attrs)
+
+    ea = sub.add_parser("eval-attributes", help="evaluate the attribute classifier")
+    ea.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    ea.set_defaults(func=cmd_eval_attrs)
+
+    se = sub.add_parser("senses", help="classify a single input-type name")
+    se.add_argument("--name", required=True)
+    se.add_argument("--seed", type=int, default=0)
+    se.add_argument("--draws", type=int, default=3)
+    se.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    se.set_defaults(func=cmd_senses)
+
+    de = sub.add_parser("detect-senses", help="classify a file's declared inputs")
+    de.add_argument("file")
+    de.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    de.set_defaults(func=cmd_detect)
+    return p
+
+
+def main(argv=None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

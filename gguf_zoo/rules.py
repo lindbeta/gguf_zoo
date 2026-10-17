@@ -1,398 +1,333 @@
-"""The 'biology': size ladder, anchor lists, and the deterministic teacher rules.
-
-The teacher maps ModelMeta -> trait labels for BOTH layers. The student
-network learns to reproduce these labels from the feature vector.
+"""Deterministic 'biology': features, parameter estimate, size ladder, quant
+health, and the trait Profile. See SPEC.md FR-2, FR-4, FR-5, FR-8.
 """
+from __future__ import annotations
+
+import hashlib
+import json
 import math
+import random
+import re
+from dataclasses import dataclass, field
+from typing import Any
 
-# ---------------------------------------------------------------------------
-# Size ladder: class index -> size-class name + anchor creatures.
-# anchors: list of display names
-# ---------------------------------------------------------------------------
-SIZE_ANCHORS = {
-    0: {"name": "virus-bacteria", "anchors": [
-        "influenza virion", "E. coli", "amoeba", "paramecium", "yeast cell",
-        "rotifer", "tardigrade", "nematode", "dust mite", "springtail",
-        "copepod", "brine shrimp"]},
-    1: {"name": "microbe-midge", "anchors": [
-        "fairyfly", "thrips", "aphid", "flea", "feather louse", "whale louse",
-        "seed shrimp", "fungus gnat", "mosquito", "blackfly", "small wasp",
-        "fruit fly"]},
-    2: {"name": "worm-gnat", "anchors": [
-        "earthworm", "mealworm larva", "caterpillar", "garden slug", "snail",
-        "woodlouse", "bed bug", "silverfish", "earwig", "small spider",
-        "harvestman", "small cricket"]},
-    3: {"name": "housefly-honeybee", "anchors": [
-        "housefly", "honeybee", "bumblebee", "paper wasp", "ladybird",
-        "ground beetle", "cockroach", "cricket", "grasshopper", "dragonfly",
-        "monarch butterfly", "zebrafish", "spring peeper frog",
-        "anole lizard"]},
-    4: {"name": "scorpion-songbird", "anchors": [
-        "scorpion", "tarantula", "hermit crab", "shore crab", "goldfish",
-        "killifish", "tree frog", "gecko", "wren", "finch", "sparrow",
-        "blackbird", "vole", "shrew", "pygmy rabbit", "hatchling turtle"]},
-    5: {"name": "rat-hawk", "anchors": [
-        "brown rat", "black rat", "guinea pig", "squirrel", "chipmunk",
-        "ferret", "weasel", "hedgehog", "opossum", "pigeon", "crow", "magpie",
-        "kestrel", "merlin", "marmoset"]},
-    6: {"name": "cat-pig", "anchors": [
-        "domestic cat", "beagle", "border collie", "fox", "raccoon", "badger",
-        "beaver", "capybara", "wallaby", "bobcat", "ocelot", "caracal",
-        "macaque", "baboon", "pot-bellied pig", "goat"]},
-    7: {"name": "ape-horse", "anchors": [
-        "human", "chimpanzee", "bonobo", "gorilla", "orangutan", "grey wolf",
-        "cougar", "red deer", "elk", "donkey", "zebra", "horse", "steer",
-        "black bear", "Labrador retriever"]},
-    8: {"name": "bison-elephant", "anchors": [
-        "American bison", "white rhino", "black rhino", "Indian rhino",
-        "hippo", "giraffe", "polar bear", "walrus", "manatee", "beluga",
-        "camel", "moose", "musk ox", "Asian elephant"]},
-    9: {"name": "tyrannosaurus-sauropod", "anchors": [
-        "Tyrannosaurus", "Spinosaurus", "Allosaurus", "Triceratops",
-        "Stegosaurus", "Ankylosaurus", "Diplodocus", "Camarasaurus",
-        "woolly mammoth", "woolly rhino", "Paraceratherium",
-        "giant ground sloth"]},
-    10: {"name": "titan", "anchors": [
-        "Argentinosaurus", "Patagotitan", "Dreadnoughtus", "Supersaurus",
-        "Alamosaurus", "blue whale", "fin whale", "Perucetus colossus",
-        "megalodon", "Liopleurodon", "King Kong", "Titanoboa maximus",
-        "sea Leviathan", "White Worm of Winterfell"]},
-    11: {"name": "kaiju", "anchors": [
-        "Godzilla", "King Ghidorah", "Mothra", "Rodan", "Mechagodzilla",
-        "Gigan", "Biollante", "SpaceGodzilla", "Destoroyah", "Shin Godzilla",
-        "Knifehead", "Raiju", "Slattern", "Otachi", "The Elder", "Sachiel",
-        "Zeruel", "Armisael", "Baltan", "Zetton", "Deep Sea King",
-        "Colossal Titan"]},
-}
+from .parser import ModelMeta
 
-BODY_SIZE_EDGES = [1e8, 5e8, 1e9, 5e9, 2e10, 1e11, 5e11, 1e12, 5e12, 2e13, 1e14]
-
-# Linnaean binomials for every anchor creature, keyed by anchor display name.
-# Real (and extinct) animals get their real scientific names; legendary
-# anchors get mock-Latin coinages. Used by the renderer in the image prompt.
-ANCHOR_TAXONOMY = {
-    # 0 virus-bacteria
-    "influenza virion": "Alphainfluenzavirus influenzae",
-    "E. coli": "Escherichia coli",
-    "amoeba": "Amoeba proteus",
-    "paramecium": "Paramecium caudatum",
-    "yeast cell": "Saccharomyces cerevisiae",
-    "rotifer": "Brachionus plicatilis",
-    "tardigrade": "Ramazzottius varieornatus",
-    "nematode": "Caenorhabditis elegans",
-    "dust mite": "Dermatophagoides pteronyssinus",
-    "springtail": "Folsomia candida",
-    "copepod": "Calanus finmarchicus",
-    "brine shrimp": "Artemia salina",
-    # 1 microbe-midge
-    "fairyfly": "Megaphragma caribea",
-    "thrips": "Frankliniella occidentalis",
-    "aphid": "Acyrthosiphon pisum",
-    "flea": "Xenopsylla cheopis",
-    "feather louse": "Menacanthus stramineus",
-    "whale louse": "Cyamus scammoni",
-    "seed shrimp": "Cypris subglobosa",
-    "fungus gnat": "Lycoriella ingenua",
-    "mosquito": "Aedes aegypti",
-    "blackfly": "Simulium damnosum",
-    "small wasp": "Trichogramma brassicae",
-    "fruit fly": "Drosophila melanogaster",
-    # 2 worm-gnat
-    "earthworm": "Lumbricus terrestris",
-    "mealworm larva": "Tenebrio molitor",
-    "caterpillar": "Manduca sexta",
-    "garden slug": "Arion hortensis",
-    "snail": "Cornu aspersum",
-    "woodlouse": "Oniscus asellus",
-    "bed bug": "Cimex lectularius",
-    "silverfish": "Lepisma saccharina",
-    "earwig": "Forficula auricularia",
-    "small spider": "Parasteatoda tepidariorum",
-    "harvestman": "Leiobunum vittatum",
-    "small cricket": "Acheta domesticus",
-    # 3 housefly-honeybee
-    "housefly": "Musca domestica",
-    "honeybee": "Apis mellifera",
-    "bumblebee": "Bombus terrestris",
-    "paper wasp": "Polistes dominula",
-    "ladybird": "Coccinella septempunctata",
-    "ground beetle": "Carabus auratus",
-    "cockroach": "Periplaneta americana",
-    "cricket": "Gryllus campestris",
-    "grasshopper": "Schistocerca gregaria",
-    "dragonfly": "Anax junius",
-    "monarch butterfly": "Danaus plexippus",
-    "zebrafish": "Danio rerio",
-    "spring peeper frog": "Pseudacris crucifer",
-    "anole lizard": "Anolis carolinensis",
-    # 4 scorpion-songbird
-    "scorpion": "Pandinus imperator",
-    "tarantula": "Theraphosa blondi",
-    "hermit crab": "Pagurus bernhardus",
-    "shore crab": "Carcinus maenas",
-    "goldfish": "Carassius auratus",
-    "killifish": "Fundulus heteroclitus",
-    "tree frog": "Hyla arborea",
-    "gecko": "Tarentola mauritanica",
-    "wren": "Troglodytes troglodytes",
-    "finch": "Fringilla coelebs",
-    "sparrow": "Passer domesticus",
-    "blackbird": "Turdus merula",
-    "vole": "Microtus agrestis",
-    "shrew": "Sorex araneus",
-    "pygmy rabbit": "Brachylagus idahoensis",
-    "hatchling turtle": "Chrysemys picta",
-    # 5 rat-hawk
-    "brown rat": "Rattus norvegicus",
-    "black rat": "Rattus rattus",
-    "guinea pig": "Cavia porcellus",
-    "squirrel": "Sciurus carolinensis",
-    "chipmunk": "Tamias striatus",
-    "ferret": "Mustela furo",
-    "weasel": "Mustela nivalis",
-    "hedgehog": "Erinaceus europaeus",
-    "opossum": "Didelphis virginiana",
-    "pigeon": "Columba livia",
-    "crow": "Corvus corone",
-    "magpie": "Pica pica",
-    "kestrel": "Falco tinnunculus",
-    "merlin": "Falco columbarius",
-    "marmoset": "Callithrix jacchus",
-    # 6 cat-pig
-    "domestic cat": "Felis catus",
-    "beagle": "Canis lupus familiaris",
-    "border collie": "Canis lupus familiaris",
-    "fox": "Vulpes vulpes",
-    "raccoon": "Procyon lotor",
-    "badger": "Meles meles",
-    "beaver": "Castor canadensis",
-    "capybara": "Hydrochoerus hydrochaeris",
-    "wallaby": "Notamacropus rufogriseus",
-    "bobcat": "Lynx rufus",
-    "ocelot": "Leopardus pardalis",
-    "caracal": "Caracal caracal",
-    "macaque": "Macaca mulatta",
-    "baboon": "Papio anubis",
-    "pot-bellied pig": "Sus scrofa domesticus",
-    "goat": "Capra hircus",
-    # 7 ape-horse
-    "human": "Homo sapiens",
-    "chimpanzee": "Pan troglodytes",
-    "bonobo": "Pan paniscus",
-    "gorilla": "Gorilla gorilla",
-    "orangutan": "Pongo pygmaeus",
-    "grey wolf": "Canis lupus",
-    "cougar": "Puma concolor",
-    "red deer": "Cervus elaphus",
-    "elk": "Cervus canadensis",
-    "donkey": "Equus asinus",
-    "zebra": "Equus quagga",
-    "horse": "Equus caballus",
-    "steer": "Bos taurus",
-    "black bear": "Ursus americanus",
-    "Labrador retriever": "Canis lupus familiaris",
-    # 8 bison-elephant
-    "American bison": "Bison bison",
-    "white rhino": "Ceratotherium simum",
-    "black rhino": "Diceros bicornis",
-    "Indian rhino": "Rhinoceros unicornis",
-    "hippo": "Hippopotamus amphibius",
-    "giraffe": "Giraffa camelopardalis",
-    "polar bear": "Ursus maritimus",
-    "walrus": "Odobenus rosmarus",
-    "manatee": "Trichechus manatus",
-    "beluga": "Delphinapterus leucas",
-    "camel": "Camelus dromedarius",
-    "moose": "Alces alces",
-    "musk ox": "Ovibos moschatus",
-    "Asian elephant": "Elephas maximus",
-    # 9 tyrannosaurus-sauropod (extinct, real scientific names)
-    "Tyrannosaurus": "Tyrannosaurus rex",
-    "Spinosaurus": "Spinosaurus aegyptiacus",
-    "Allosaurus": "Allosaurus fragilis",
-    "Triceratops": "Triceratops horridus",
-    "Stegosaurus": "Stegosaurus stenops",
-    "Ankylosaurus": "Ankylosaurus magniventris",
-    "Diplodocus": "Diplodocus carnegii",
-    "Camarasaurus": "Camarasaurus lentus",
-    "woolly mammoth": "Mammuthus primigenius",
-    "woolly rhino": "Coelodonta antiquitatis",
-    "Paraceratherium": "Paraceratherium bugtiense",
-    "giant ground sloth": "Megatherium americanum",
-    # 10 titan - real
-    "Argentinosaurus": "Argentinosaurus huinculensis",
-    "Patagotitan": "Patagotitan mayorum",
-    "Dreadnoughtus": "Dreadnoughtus schrani",
-    "Supersaurus": "Supersaurus vivianae",
-    "Alamosaurus": "Alamosaurus sanjuanensis",
-    "blue whale": "Balaenoptera musculus",
-    "fin whale": "Balaenoptera physalus",
-    "Perucetus colossus": "Perucetus colossus",
-    "megalodon": "Otodus megalodon",
-    "Liopleurodon": "Liopleurodon ferox",
-    # 10 titan - legendary anchors (mock-Latin)
-    "King Kong": "Megaprimatus kong",
-    "Titanoboa maximus": "Titanoboa maximus",
-    "sea Leviathan": "Leviathan maritimus",
-    "White Worm of Winterfell": "Vermis albus",
-    # 11 kaiju (mock-Latin)
-    "Godzilla": "Godzillasaurus gojirae",
-    "King Ghidorah": "Ghidorus tricephalus",
-    "Mothra": "Mothra pulchella",
-    "Rodan": "Rodan volans",
-    "Mechagodzilla": "Mechagodzilla metallicus",
-    "Gigan": "Gigan ensifer",
-    "Biollante": "Biollante plantaris",
-    "SpaceGodzilla": "SpaceGodzilla sidereus",
-    "Destoroyah": "Destoroyah aquatica",
-    "Shin Godzilla": "Godzillasaurus shinensis",
-    "Knifehead": "Cultellum maris",
-    "Raiju": "Raiurus electricus",
-    "Slattern": "Slattern venenum",
-    "Otachi": "Otachi volans",
-    "The Elder": "Elder abyssalis",
-    "Sachiel": "Sachiel angelicus",
-    "Zeruel": "Zeruel angelicus",
-    "Armisael": "Armisael angelicus",
-    "Baltan": "Baltan stellis",
-    "Zetton": "Zetton transcendens",
-    "Deep Sea King": "Rex abyssorum",
-    "Colossal Titan": "Titan colossus",
-}
-
-
-def anchor_taxonomy(name: str) -> str:
-    """Linnaean binomial for an anchor creature."""
-    return ANCHOR_TAXONOMY[name]
-
-# label vocabularies (index -> prose handled in render.py)
-HEADS = [
-    "body_size", "condition", "gut", "build", "eye", "body_length", "diet_breadth",
-    "has_vision", "has_audio", "is_moe", "is_subterranean",
-    "integument", "palette", "habitat_tint", "fastness", "gradient_pattern",
-    "marking_complexity", "headgear", "ear_size",
-    "second_jaw", "has_baleen", "two_bodied", "lipless",
-]
-HEAD_SIZES = {
-    "body_size": 12, "condition": 6, "gut": 4, "build": 3, "eye": 4,
-    "body_length": 4, "diet_breadth": 6,
-    "has_vision": 2, "has_audio": 2, "is_moe": 2, "is_subterranean": 2,
-    "integument": 6, "palette": 8, "habitat_tint": 5, "fastness": 3,
-    "gradient_pattern": 3, "marking_complexity": 6, "headgear": 5,
-    "ear_size": 3,
-    "second_jaw": 2, "has_baleen": 2, "two_bodied": 2, "lipless": 2,
-}
-
-# Shared roughly-doubling boundaries for diet_breadth AND marking_complexity
-# (lower bound inclusive, upper bound exclusive). One constant so the two
-# heads can never drift apart.
 VOCAB_DIET_BOUNDARIES = [16000, 48000, 100000, 200000, 400000]
-LAYER1_HEADS = HEADS[:11]
-LAYER2_HEADS = HEADS[11:]
+
+# FR-4.1 size ladder: (upper_bound, tier_name, range_prose)
+SIZE_LADDER = [
+    (100e6, "Submicroscopic", "virus to bacterium"),
+    (500e6, "Microscopic", "microbe to midge"),
+    (1e9, "Minute", "roundworm to gnat"),
+    (4e9, "Small", "housefly to honeybee"),
+    (20e9, "Medium-small", "scorpion to songbird"),
+    (100e9, "Medium", "rat to hawk"),
+    (500e9, "Medium-large", "cat to pig"),
+    (1e12, "Large", "ape to horse"),
+    (5e12, "Megafauna", "bison to elephant"),
+    (20e12, "Gigantic", "Tyrannosaurus to sauropod"),
+    (100e12, "Titanic", "titan"),
+    (500e12, "Kaiju", "kaiju"),
+]
+BEYOND_KAIJU = ("Beyond Kaiju", "a kaiju that dwarfs mountains")
+UNCLASSIFIABLE = ("Unclassifiable", "a size that resists measurement")
+
+# FR-5.1 quant value -> (name, band)
+QUANT_TABLE = {
+    0: ("ALL_F32", 10), 1: ("F16", 9), 2: ("Q4_0", 4), 3: ("Q4_1", 5),
+    5: ("Q5_0", 6), 6: ("Q5_1", 7), 7: ("Q8_0", 9), 8: ("IQ2_XXS", 1),
+    9: ("IQ2_XS", 1), 10: ("Q2_K", 2), 11: ("Q3_K_S", 3), 12: ("Q3_K_M", 3),
+    13: ("Q3_K_L", 4), 14: ("Q4_K_S", 5), 15: ("Q4_K_M", 6), 16: ("Q5_K_S", 7),
+    17: ("Q5_K_M", 8), 18: ("Q6_K", 8), 19: ("Q8_1", 9), 20: ("IQ2_S", 1),
+    21: ("IQ4_XS", 3), 22: ("IQ1_S", 0), 23: ("IQ1_M", 0), 24: ("IQ2_M", 1),
+    25: ("IQ3_XXS", 2), 26: ("IQ3_S", 3), 27: ("IQ3_M", 4), 28: ("IQ2_XL", 2),
+    29: ("IQ4_XS", 3), 30: ("IQ4_S", 4), 31: ("IQ3_XXS", 2), 32: ("IQ1_S", 0),
+    33: ("IQ1_M", 0), 34: ("IQ2_S", 1), 35: ("IQ2_M", 1), 36: ("IQ2_XL", 2),
+    37: ("IQ3_L", 4), 38: ("IQ4_XL", 4), 39: ("IQ4_XL", 4),
+}
+
+HEALTH_WORDS = {10: "pristine", 9: "excellent", 8: "good", 7: "fair", 6: "weathered",
+                5: "frail", 4: "emaciated", 3: "diseased", 2: "near-corpse",
+                1: "skeletal", 0: "dust"}
+
+# FR-5.3 condition modifiers (additional descriptions), applied in this fixed order.
+QUANT_MODIFIERS = [
+    (re.compile(r"XXS"), "bones like capillary tubes; it looks ready to snap"),
+    (re.compile(r"XS"), "fine-boned and compact, every part reduced to its minimum"),
+    (re.compile(r"_S$"), "sleek and close-coated, with nothing to spare"),
+    (re.compile(r"_M$"), "mottled and asymmetric — the two sides never quite match"),
+    (re.compile(r"_L$"), "thick-set and heavy-coated, carrying extra everything"),
+    (re.compile(r"K"), "patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar"),
+    (re.compile(r"_0$"), "blunt and undetailed; its features are all broad strokes"),
+    (re.compile(r"_1$"), "finely etched, every ridge and whisker crisply drawn"),
+]
 
 
-# ---------------------------------------------------------------------------
-# feature helpers
-# ---------------------------------------------------------------------------
-def quant_ordinal(quant: str) -> int:
-    """0=Q2, 1=Q3, 2=Q4, 3=Q5, 4=Q6, 5=Q8, 6=lossless."""
-    q = (quant or "").upper()
-    if q in ("F16", "F32", "BF16", "F64"):
-        return 6
-    if q.startswith("IQ"):
-        digits = "".join(c for c in q[2:] if c.isdigit())
-        bits = int(digits[0]) if digits else 4
-        return {1: 0, 2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 8: 5}.get(bits, 2)
-    digits = "".join(c for c in q if c.isdigit())
-    bits = int(digits[0]) if digits else 4
-    return min(max(bits - 2, 0), 5) if bits <= 8 else 5
+class Die:
+    """Single seeded RNG source (FR-8.1)."""
+
+    def __init__(self, seed: str):
+        self._rng = random.Random(seed)
+
+    def choice(self, seq):
+        return self._rng.choice(seq)
+
+    def index(self, seq):
+        return self._rng.randrange(len(seq))
+
+    def random(self) -> float:
+        return self._rng.random()
 
 
-ARCH_IDS = ["llama", "qwen", "mistral", "gemma", "phi", "deepseek",
-            "falcon", "command", "other", "unknown"]
-ARCH_TO_ID = {
-    "llama": 0, "qwen": 1, "qwen2": 1, "qwen2moe": 1, "qwen3": 1,
-    "mistral": 2, "mixtral": 2, "gemma": 3, "gemma2": 3, "gemma3": 3,
-    "phi": 4, "phi2": 4, "phi3": 4, "deepseek": 5, "deepseek2": 5,
-    "falcon": 6, "command-r": 7, "commandr": 7, "cohere": 7,
+def meta_hash(kv: dict[str, Any]) -> str:
+    blob = json.dumps(kv, sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode()).hexdigest()
+
+
+@dataclass
+class Features:
+    arch: str | None
+    name: str | None
+    file_type: int | str | None
+    n_layers: int | None
+    n_embd: int | None
+    n_vocab: int | None
+    n_expert: int | None
+    n_expert_used: int | None
+    size_label: str | None = None
+    input_types: list[str] = field(default_factory=list)
+    unknown: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class QuantInfo:
+    name: str
+    label: str
+    band: int
+    modifiers: list[str]
+    recognized: bool
+
+
+@dataclass
+class Profile:
+    body_size: int
+    condition: int
+    gut: int
+    build: int
+    eye: int
+    body_length: int
+    diet_breadth: int
+    integument: int
+    palette: int
+    habitat_tint: int
+    fastness: int
+    gradient_pattern: int
+    marking_complexity: int
+    headgear: int
+    ear_size: int
+    is_moe: bool = False
+    has_ssm: bool = False
+    second_jaw: bool = False
+    has_baleen: bool = False
+    two_bodied: bool = False
+    lipless: bool = False
+    patchy_modifier: bool = False
+    habitat: int = 0                       # 0 terrestrial, 1 aerial, 2 aquatic
+    plant_like: bool = False
+    features: list = field(default_factory=list)
+    senses: list = field(default_factory=list)          # (input, sense) visible
+    anomaly_senses: list = field(default_factory=list)  # non-visible senses
+
+
+HABITAT_NAMES = ["terrestrial", "aerial", "aquatic"]
+
+
+def habitat_class(seed_int: int) -> int:
+    """Equal-thirds habitat assignment (FR-15.1)."""
+    return seed_int % 3
+
+
+_RECOGNIZED_RE = re.compile(
+    r"^(general\.file_type|tokenizer\.ggml\..+|general\.architecture\..+)$")
+
+
+_STANDARD_GENERAL_KEYS = {
+    "general.architecture", "general.name", "general.language", "general.author",
+    "general.base_model", "general.basename", "general.finetune", "general.license",
+    "general.license_link", "general.quantized_by", "general.size_label",
+    "general.type", "general.quantization_version",
 }
 
 
-def arch_id(architecture: str) -> int:
-    a = (architecture or "").lower()
-    if not a:
-        return 9
-    if a in ARCH_TO_ID:
-        return ARCH_TO_ID[a]
-    for key, idx in ARCH_TO_ID.items():
-        if a.startswith(key):
-            return idx
-    return 8
+def _is_recognized(key: str, arch: str | None = None) -> bool:
+    if key in _STANDARD_GENERAL_KEYS:
+        return True
+    if key.startswith("general.sampling."):
+        return True
+    if key in ("tokenizer.chat_template", "tokenizer.ggml.chat_template"):
+        return True
+    if arch and key.startswith(f"{arch}."):
+        return True
+    return bool(_RECOGNIZED_RE.match(key))
 
 
-LANG_GROUPS = ["arctic", "multilingual", "temperate", "jade-ink", "desert-ochre"]
-_ARCTIC = {"ru", "ru,uk", "fi", "no", "nb", "sv", "is", "da"}
-_JADE = {"zh", "ja", "ko", "zh,ja", "zh-hans", "zh-hant"}
-_DESERT = {"ar", "he", "fa", "ur"}
+def extract_features(meta: ModelMeta) -> Features:
+    unknown = {k: v for k, v in meta.kv.items()
+               if not _is_recognized(k, meta.arch)}
+    return Features(
+        arch=meta.arch, name=meta.name, file_type=meta.file_type,
+        n_layers=meta.n_layers, n_embd=meta.n_embd, n_vocab=meta.n_vocab,
+        n_expert=meta.n_expert, n_expert_used=meta.n_expert_used,
+        size_label=meta.size_label,
+        input_types=list(meta.input_types), unknown=unknown,
+    )
 
 
-def lang_group(language: str) -> int:
-    l = (language or "").lower().strip()
-    if not l:
-        return 2
-    if "multi" in l or l == "en,es,fr,de,zh,ja,ru,ar,hi":
+_SIZE_LABEL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*([bmk])", re.IGNORECASE)
+
+
+def estimate_params(f: Features) -> int | None:
+    if f.size_label:
+        mo = _SIZE_LABEL_RE.search(str(f.size_label))
+        if mo:
+            mult = {"k": 1e3, "m": 1e6, "b": 1e9}[mo.group(2).lower()]
+            return int(float(mo.group(1)) * mult)
+    if f.n_layers is None or f.n_embd is None or f.n_vocab is None:
+        return None
+    d = f.n_embd
+    mlp = 8 * d * d
+    if f.n_expert and f.n_expert_used and f.n_expert_used < f.n_expert:
+        mlp = mlp * f.n_expert_used / f.n_expert
+    total = f.n_vocab * d * 2 + f.n_layers * (4 * d * d + mlp)
+    return int(total)
+
+
+def size_tier(n_params: int | None) -> tuple[str, str]:
+    if n_params is None:
+        return UNCLASSIFIABLE
+    for bound, name, prose in SIZE_LADDER:
+        if n_params < bound:
+            return name, prose
+    return BEYOND_KAIJU
+
+
+# FR-4.6 — actual body dimensions, log-log interpolated against the anchor
+# ladder (bacterium 1 um / 1 pg ... kaiju 300 m / 50 Mt). (params, metres, kg)
+_DIM_ANCHORS = [
+    (1e6, 1e-6, 1e-15),
+    (5e7, 1e-3, 1e-9),
+    (5e8, 4e-3, 1e-6),
+    (4e9, 1.5e-2, 1e-4),
+    (2e10, 0.2, 0.1),
+    (1e11, 0.5, 1.0),
+    (5e11, 1.5, 80.0),
+    (1e12, 2.5, 5e2),
+    (5e12, 6.0, 5e3),
+    (2e13, 25.0, 3e4),
+    (1e14, 100.0, 5e5),
+    (5e14, 300.0, 5e7),
+]
+
+
+def _interp_dim(lp: float, vals: list[float]) -> float:
+    xs = [math.log10(p) for p, _, _ in _DIM_ANCHORS]
+    if lp <= xs[0]:
+        return vals[0]
+    if lp >= xs[-1]:
+        return vals[-1]
+    for i in range(len(xs) - 1):
+        if xs[i] <= lp <= xs[i + 1]:
+            t = (lp - xs[i]) / (xs[i + 1] - xs[i])
+            a, b = vals[i], vals[i + 1]
+            return 10 ** (math.log10(a) + t * (math.log10(b) - math.log10(a)))
+    return vals[-1]
+
+
+def _fmt_length(m: float) -> str:
+    if m < 1e-3:
+        return f"{m * 1e6:.0f} µm"
+    if m < 1.0:
+        return f"{m * 100:.1f} cm"
+    if m < 100.0:
+        return f"{m:.1f} m"
+    return f"{m:.0f} m"
+
+
+def _fmt_mass(kg: float) -> str:
+    if kg < 1e-6:
+        return f"{kg * 1e9:.1f} µg"
+    if kg < 1e-3:
+        return f"{kg * 1e6:.0f} mg"
+    if kg < 1.0:
+        return f"{kg * 1e3:.0f} g"
+    if kg < 1e3:
+        return f"{kg:.1f} kg"
+    if kg < 1e6:
+        return f"{kg / 1e3:.1f} tonnes"
+    return f"{kg / 1e6:.1f} megatonnes"
+
+
+def body_dimensions(n_params: int | None) -> tuple[str, str] | None:
+    """FR-4.6: (length, mass) prose for an estimated param count, or None."""
+    if not n_params or n_params <= 0:
+        return None
+    lp = math.log10(n_params)
+    length = _interp_dim(lp, [m for _, m, _ in _DIM_ANCHORS])
+    mass = _interp_dim(lp, [kg for _, _, kg in _DIM_ANCHORS])
+    return _fmt_length(length), _fmt_mass(mass)
+
+
+def _quant_modifiers(name: str) -> list[str]:
+    return [prose for rx, prose in QUANT_MODIFIERS if rx.search(name)]
+
+
+def quant_info(f: Features) -> QuantInfo:
+    ft = f.file_type
+    if isinstance(ft, bool):
+        ft = int(ft)
+    if isinstance(ft, int) and ft in QUANT_TABLE:
+        name, band = QUANT_TABLE[ft]
+        return QuantInfo(name, _quant_label(name), band, _quant_modifiers(name), True)
+    if isinstance(ft, str):
+        mo = re.match(r"(?:IQ|Q)(\d+)", ft)
+        if mo:
+            bits = int(mo.group(1))
+            band = max(0, min(8, bits * 2 - 2))
+            return QuantInfo(ft, _quant_label(ft), band, _quant_modifiers(ft), False)
+    return QuantInfo(str(ft) if ft is not None else "unknown",
+                     "unrecognized quantization", 5, [], False)
+
+
+def _quant_label(name: str) -> str:
+    if name in ("ALL_F32",):
+        return "32-bit float"
+    if name in ("F16",):
+        return "16-bit float"
+    if name.startswith("IQ"):
+        return f"{name} importance-quantized"
+    if "K" in name:
+        return f"{name} K-quant"
+    return f"{name} quant"
+
+
+# --- trait rules (FR-2) ----------------------------------------------------
+def gut_class(ctx: int | None) -> int:
+    if ctx is None:
         return 1
-    parts = {p.strip() for p in l.split(",")}
-    if len(parts) > 4:
-        return 1
-    if parts & _ARCTIC:
+    if ctx <= 4096:
         return 0
-    if parts & _JADE:
-        return 3
-    if parts & _DESERT:
-        return 4
-    return 2
-
-
-def rope_scaling_id(s: str) -> int:
-    return {"none": 0, "linear": 1, "dynamic": 2, "yarn": 3}.get(
-        (s or "none").lower(), 0)
-
-
-def block_style_id(s: str) -> int:
-    return {"K-quant": 0, "legacy": 1, "lossless": 2}.get(s, 1)
-
-
-# ---------------------------------------------------------------------------
-# Layer 1 rules
-# ---------------------------------------------------------------------------
-def body_size_class(n_params: float) -> int:
-    for i, edge in enumerate(BODY_SIZE_EDGES):
-        if n_params < edge:
-            return i
-    return 11
-
-
-def condition_class(quant: str) -> int:
-    """Health ladder: 0 ideally muscled, 1 robust, 2 malnourished, 3 thin,
-    4 gaunt, 5 emaciated (lowest quant)."""
-    return {6: 0, 5: 1, 4: 2, 3: 2, 2: 3, 1: 4, 0: 5}[quant_ordinal(quant)]
-
-
-def gut_class(context_length: int) -> int:
-    if context_length <= 4096:
-        return 0
-    if context_length <= 32768:
+    if ctx <= 32768:
         return 1
-    if context_length <= 131072:
+    if ctx <= 131072:
         return 2
     return 3
 
 
-def build_class(d_ff: int, d_model: int) -> int:
-    if d_model <= 0:
+def build_class(d_ff: int | None, d_embd: int | None) -> int:
+    if not d_embd or not d_ff:
         return 1
-    ratio = d_ff / d_model
+    ratio = d_ff / d_embd
     if ratio > 3.2:
         return 2
     if ratio >= 2.5:
@@ -400,18 +335,19 @@ def build_class(d_ff: int, d_model: int) -> int:
     return 0
 
 
-def eye_class(n_heads: int, n_kv_heads: int) -> int:
-    """0 compound, 1 fewer-large, 2 GQA big-eyes-cheap-nerve, 3 cyclops."""
-    if n_kv_heads <= 1 and n_heads > 0:
+def eye_class(n_heads: int | None, n_kv: int | None) -> int:
+    if n_kv is not None and n_kv <= 1 and (n_heads or 0) > 0:
         return 3
-    if n_heads > 0 and n_kv_heads > 0 and n_kv_heads * 4 <= n_heads:
+    if n_heads and n_kv and n_kv * 4 <= n_heads:
         return 2
-    if n_heads >= 48:
+    if (n_heads or 0) >= 48:
         return 0
     return 1
 
 
-def body_length_class(n_layers: int) -> int:
+def body_length_class(n_layers: int | None) -> int:
+    if n_layers is None:
+        return 1
     if n_layers < 20:
         return 0
     if n_layers <= 40:
@@ -421,89 +357,92 @@ def body_length_class(n_layers: int) -> int:
     return 3
 
 
-def diet_class(vocab_size: int) -> int:
-    """6-class diet breadth from vocab size using the shared boundary ladder:
-    0 obligate specialist, 1 picky browser, 2 generalist forager,
-    3 broad-spectrum omnivore, 4 bulk browser, 5 all-eater/baleen strainer."""
+def diet_class(vocab: int | None) -> int:
+    if vocab is None:
+        return 2
     for i, edge in enumerate(VOCAB_DIET_BOUNDARIES):
-        if vocab_size < edge:
+        if vocab < edge:
             return i
     return 5
 
 
-# ---------------------------------------------------------------------------
-# Layer 2 rules
-# ---------------------------------------------------------------------------
-def integument_class(meta) -> int:
-    """0 exoskeleton, 1 quills, 2 fur, 3 scales, 4 bare, 5 patchy.
-
-    Priority: SSM > MoE > K-quant > legacy > lossless.
-    Q2/Q3 condition turns cosmetic skins (fur/scales/bare) patchy;
-    structural skins (exoskeleton/quills) keep their class with a
-    patchy render modifier.
-    """
+def integument_class(meta: ModelMeta, condition: int) -> int:
     if meta.has_ssm:
         base = 0
     elif meta.is_moe:
         base = 1
-    elif meta.quant_block_style == "K-quant":
+    elif meta.file_type in (15, 14, 17, 16, 18, 10, 11, 12, 13):  # K-quants
         base = 2
-    elif meta.quant_block_style == "legacy":
-        base = 3
-    elif meta.quant_block_style == "lossless":
+    elif meta.file_type in (0, 1):
         base = 4
     else:
         base = 3
-    if condition_class(meta.quant_type) in (4, 5) and base in (2, 3, 4):
+    if condition in (4, 5) and base in (2, 3, 4):
         return 5
     return base
 
 
-def palette_id(architecture: str) -> int:
-    a = arch_id(architecture)
-    # 0 desert tan, 1 jade+vermilion, 2 mistral blue, 3 pearl-blue,
-    # 4 deep violet, 5 ink+gold, 6 rust/amber, 7 slate grey
-    return {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 6, 8: 7, 9: 7}[a]
+_PALETTE = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 6}
 
 
-def habitat_tint_id(language: str) -> int:
-    return lang_group(language)
+def palette_id(arch: str | None) -> int:
+    a = (arch or "").lower()
+    table = [("llama", 0), ("qwen", 1), ("mistral", 2), ("mixtral", 2),
+             ("gemma", 3), ("phi", 4), ("deepseek", 5), ("falcon", 6),
+             ("command", 7), ("cohere", 7)]
+    for key, pid in table:
+        if a.startswith(key):
+            return pid
+    return 7
 
 
-def fastness_id(quant: str) -> int:
-    o = quant_ordinal(quant)
-    if o >= 5:
+def habitat_tint_id(language: str | None) -> int:
+    l = (language or "").lower()
+    if not l:
+        return 2
+    if "multi" in l or len(l.split(",")) > 4:
+        return 1
+    arctic = {"ru", "fi", "no", "nb", "sv", "is", "da", "uk"}
+    jade = {"zh", "ja", "ko"}
+    desert = {"ar", "he", "fa", "ur"}
+    parts = {p.strip() for p in l.split(",")}
+    if parts & arctic:
         return 0
-    if o >= 2:
+    if parts & jade:
+        return 3
+    if parts & desert:
+        return 4
+    return 2
+
+
+def fastness_id(band: int) -> int:
+    if band >= 9:
+        return 0
+    if band >= 5:
         return 1
     return 2
 
 
-def gradient_pattern_id(rope_freq_base: float) -> int:
-    if rope_freq_base >= 100000:
+def gradient_pattern_id(rope_base: float | None) -> int:
+    if rope_base is None:
+        return 1
+    if rope_base >= 100000:
         return 0
-    if rope_freq_base >= 10000:
+    if rope_base >= 10000:
         return 1
     return 2
 
 
-def marking_complexity_id(vocab_size: int) -> int:
-    """6-class marking complexity; shares VOCAB_DIET_BOUNDARIES with
-    diet_class so the two ladders can never drift apart:
-    0 plain coat, 1 faint markings, 2 modest markings, 3 bold patterning,
-    4 intricate plumage, 5 extreme ornate display."""
-    return diet_class(vocab_size)
-
-
-def headgear_id(rope_scaling_type: str, partial_rope: bool) -> int:
-    """0 hornless, 1 spikes, 2 antler crown, 3 asymmetric rack, 4 single horn."""
-    if partial_rope:
+def headgear_id(rope_scaling: str | None, partial: bool) -> int:
+    if partial:
         return 4
     return {"none": 0, "linear": 1, "yarn": 2, "dynamic": 3}.get(
-        (rope_scaling_type or "none").lower(), 0)
+        (rope_scaling or "none").lower(), 0)
 
 
-def ear_size_id(head_dim: int) -> int:
+def ear_size_id(head_dim: int | None) -> int:
+    if head_dim is None:
+        return 1
     if head_dim >= 128:
         return 2
     if head_dim >= 64:
@@ -511,33 +450,38 @@ def ear_size_id(head_dim: int) -> int:
     return 0
 
 
-def teacher(meta) -> dict:
-    """Full deterministic trait profile for both layers + render modifiers."""
-    subterranean = 0 if (meta.has_vision or meta.has_audio) else 1
-    return {
-        "body_size": body_size_class(meta.n_params),
-        "condition": condition_class(meta.quant_type),
-        "gut": gut_class(meta.context_length),
-        "build": build_class(meta.d_ff, meta.d_model),
-        "eye": eye_class(meta.n_heads, meta.n_kv_heads),
-        "body_length": body_length_class(meta.n_layers),
-        "diet_breadth": diet_class(meta.vocab_size),
-        "has_vision": int(meta.has_vision),
-        "has_audio": int(meta.has_audio),
-        "is_moe": int(meta.is_moe),
-        "is_subterranean": subterranean,
-        "integument": integument_class(meta),
-        "palette": palette_id(meta.architecture),
-        "habitat_tint": habitat_tint_id(meta.language),
-        "fastness": fastness_id(meta.quant_type),
-        "gradient_pattern": gradient_pattern_id(meta.rope_freq_base),
-        "marking_complexity": marking_complexity_id(meta.vocab_size),
-        "headgear": headgear_id(meta.rope_scaling_type, meta.partial_rope),
-        "ear_size": ear_size_id(meta.head_dim),
-        "second_jaw": int(meta.mtp_tensors),
-        "has_baleen": int(bool(meta.pooling_type)),
-        "two_bodied": int(meta.is_encoder_decoder),
-        "lipless": int(not meta.add_bos and not meta.add_eos),
-        # render-only modifiers (not model heads)
-        "patchy_modifier": condition_class(meta.quant_type) in (4, 5),
-    }
+def build_profile(meta: ModelMeta) -> Profile:
+    f = extract_features(meta)
+    qi = quant_info(f)
+    body_size = _body_size_index(estimate_params(f))
+    return Profile(
+        body_size=body_size,
+        condition=qi.band,
+        gut=gut_class(meta.context_length),
+        build=build_class(meta.d_ff, meta.n_embd),
+        eye=eye_class(meta.n_heads, meta.n_kv_heads),
+        body_length=body_length_class(meta.n_layers),
+        diet_breadth=diet_class(meta.n_vocab),
+        integument=integument_class(meta, qi.band),
+        palette=palette_id(meta.arch),
+        habitat_tint=habitat_tint_id(meta.language),
+        fastness=fastness_id(qi.band),
+        gradient_pattern=gradient_pattern_id(meta.rope_freq_base),
+        marking_complexity=diet_class(meta.n_vocab),
+        headgear=headgear_id(meta.rope_scaling_type, meta.partial_rope),
+        ear_size=ear_size_id(meta.head_dim),
+        is_moe=meta.is_moe, has_ssm=meta.has_ssm,
+        second_jaw=meta.mtp_tensors, has_baleen=bool(meta.pooling_type),
+        two_bodied=meta.is_encoder_decoder,
+        lipless=(not meta.add_bos and not meta.add_eos),
+        patchy_modifier=qi.band in (4, 5),
+    )
+
+
+def _body_size_index(n_params: int | None) -> int:
+    if n_params is None:
+        return 0
+    for i, (bound, _, _) in enumerate(SIZE_LADDER):
+        if n_params < bound:
+            return i
+    return 12

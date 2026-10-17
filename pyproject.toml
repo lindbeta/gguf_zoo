@@ -1,7 +1,7 @@
 [project]
 name = "gguf-zoo"
-version = "1.0.0"
-description = "GGUF metadata -> trainable creature field-guide generator"
+version = "2.0.0"
+description = "GGUF metadata -> deterministic fictional creature field guide"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,12 +9,23 @@ dependencies = [
     "torch>=2.7",
 ]
 
-# torch on PyPI ships CPU-only wheels for Windows; pull the CUDA build
-# (matches the cu128 builds used for development) from the PyTorch index.
-[tool.uv.sources]
-torch = { index = "pytorch-cu128" }
+[project.scripts]
+gguf-zoo = "gguf_zoo.cli:main"
 
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gguf_zoo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "req: FR requirement id covered by this test",
+]
