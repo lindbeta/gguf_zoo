@@ -1,5 +1,6 @@
 """argparse CLI for gguf-zoo."""
 import argparse
+import datetime
 import json
 import os
 import sys
@@ -69,13 +70,32 @@ def _predict_profile(meta: ModelMeta, ckpt: str, device: str) -> dict:
     return profile
 
 
-def _do_infer(args):
+def _validate_infer(args):
+    """Check every infer argument before any work is performed."""
+    errs = []
     if bool(args.gguf) == bool(args.synthetic):
-        print("error: provide exactly one of --gguf or --synthetic", file=sys.stderr)
+        errs.append("provide exactly one of --gguf or --synthetic")
+    if args.gguf and not os.path.isfile(args.gguf):
+        errs.append(f"--gguf file not found: {args.gguf}")
+    if args.synthetic:
+        try:
+            if not isinstance(json.loads(args.synthetic), dict):
+                raise ValueError("not a JSON object")
+        except ValueError as e:
+            errs.append(f"--synthetic is not valid JSON: {e}")
+    if errs:
+        for e in errs:
+            print(f"error: {e}", file=sys.stderr)
         sys.exit(2)
+
+
+def _do_infer(args):
+    _validate_infer(args)
     if args.gguf:
         meta = parse_gguf(args.gguf)
         src = args.gguf
+        meta.year = datetime.date.fromtimestamp(
+            os.path.getmtime(args.gguf)).year
     else:
         meta = _meta_from_synthetic(json.loads(args.synthetic))
         src = "synthetic record"
@@ -90,12 +110,17 @@ def _do_infer(args):
         profile = teacher(meta)
         source = "teacher rules (fallback)"
 
-    field, prompt = render(meta, profile)
+    from . import taxonomy
+    name = taxonomy.binomial(profile, meta, strict=args.strict_names)
+    field, prompt = render(meta, profile, name=name)
     print(f"=== gguf-zoo field guide ===")
     print(f"source: {src}")
     print(f"profile from: {source}")
     print(f"architecture: {meta.architecture or '?'}  quant: {meta.quant_type}  "
           f"params: {meta.n_params:,}  ctx: {meta.context_length:,}")
+    print()
+    print(f"NOMENCLATURE")
+    print(name)
     print()
     print("FIELD DESCRIPTION")
     print(field)
@@ -129,6 +154,8 @@ def main(argv=None):
                    "\"architecture\": \"qwen2\", \"vocab\": 151936}'")
     i.add_argument("--ckpt", default="model.pt")
     i.add_argument("--device", default="cpu")
+    i.add_argument("--strict-names", action="store_true",
+                   help="enforce unique binomials via the names.json registry")
 
     e = sub.add_parser("evaluate", help="per-head accuracy on the test split")
     e.add_argument("--data", default="data")

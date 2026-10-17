@@ -331,7 +331,6 @@ def parse_gguf(path: str) -> ModelMeta:
             dtype = r.u32()
             offset = r.u64()
             tensors.append(TensorInfo(name, dims, dtype, offset))
-        # stop here: weight data is never read
     meta = build_meta(kv, tensors, os.path.basename(path))
     if meta.n_tensors == 0:
         meta.n_tensors = int(kv.get("general.tensor_count", 0) or 0)

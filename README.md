@@ -46,7 +46,7 @@ The project uses [uv](https://docs.astral.sh/uv/) for environment management.
 `uv.lock` and `.python-version` (3.14) make the environment reproducible:
 
 ```
-uv sync          # creates .venv and installs numpy + torch (cu128)
+uv sync              # creates .venv and installs numpy + torch (cu128)
 uv run python gguf_zoo.py --help
 ```
 
@@ -68,6 +68,7 @@ python gguf_zoo.py gen-data [--n 200000] [--out data/] [--seed 42]
 python gguf_zoo.py train    [--data data/] [--epochs 60] [--batch-size 4096]
                             [--device auto|cuda|mps|cpu] [--ckpt model.pt] [--seed 42]
 python gguf_zoo.py infer --gguf path/to/model.gguf [--ckpt model.pt] [--device cpu]
+                         [--strict-names]
 python gguf_zoo.py infer --synthetic '{"n_params": 1e9, "quant": "Q4_K_M", "context": 4096, "vision": true, "architecture": "qwen2", "vocab": 151936}'
 python gguf_zoo.py evaluate [--data data/] [--ckpt model.pt] [--device auto]
 ```
@@ -267,6 +268,69 @@ health ladder: *ideally muscled → emaciated*).
 The pools are pure presentation-layer entropy downstream of the network:
 training, evaluation, and teacher/student agreement are untouched.
 
+## Nomenclature (`taxonomy.py`)
+
+Every creature gets a deterministic, grammatically valid New Latin binomial:
+
+```
+Genus epithet [epithet2] Authority[, Year]
+```
+
+These are playful coinages for a speculative zoo, not real taxonomy.
+
+**Genus** = Latinized architecture stem x size-band animal root, from the
+curated `GENUS_FUSIONS` table (9 stems x 6 bands, 1-3 candidates per cell,
+picked by the salted hash stream `taxonomy-v1`). Each genus carries a
+grammatical gender:
+
+| body_size classes | band | gender | llama stem example |
+|---|---|---|---|
+| 1-2 | micro | neuter (-um) | Llamium |
+| 3-4 | insect | feminine (-apis) | Llamaapis |
+| 5-6 | small fauna | feminine (-iola) | Llamaiola |
+| 7-8 | mammal | masculine (-ferus) | Llamaferus |
+| 9-10 | mega | masculine (-odon) | Llamaferodon |
+| 11-12 | colossal | masculine (-titan) | Llamatitan |
+
+Stems: `llama`->Llama, `qwen`->Qwen, `mistral`->Mistral, `gemma`->Gemma,
+`phi`->Phi, `deepseek`->Profund, any MoE/`mixtral`->Fav (honeycomb),
+`mamba`/SSM->Lorica (segmented armor), unknown->Ignot.
+
+**Epithets** are trait-derived Latin adjectives, at most two, chosen by the
+fixed priority `integument > condition > headgear > eye > gut >
+diet_breadth > palette`. Skip rules: condition "worn" (Q4-class) is skipped
+when integument fired; `hornless` fires only if nothing else did; palette
+defaults (mistral blue, pearl, rust) never fire; if nothing fires at all the
+fallback is `ignotus/ignota/ignotum` ("the unknown one"). **Every epithet is
+inflected to the genus gender** (`pilosus/pilosa/pilosum`), invariant forms
+(`parviventris`, `cyclops`) included.
+
+**Authority**: Latinized `general.author` (capitalized names gain -ia:
+Microsoft -> Microsoftia; lowercase stays: bartowski), else the architecture
+name lowercase. Finetunes (`base_model` != `name`) append `& basegenus`.
+**Year**: file mtime year for real files; omitted, never fabricated.
+
+**Collisions**: two models sharing a binomial is legal - real taxonomy
+distinguishes homonyms by authority and year. `infer --strict-names` keeps a
+`names.json` registry and forces uniqueness: walk down the epithet candidate
+list, then append a hash-derived trinomen (`minoris`/`mediocris`/`majoris`).
+Registry entries are sorted by meta hash, so strict output is deterministic
+for a given input set.
+
+Worked examples:
+
+| creature | name | why |
+|---|---|---|
+| 1B qwen, fur, jade | `Qwenapis pilosa viridis qwen2` | insect-band feminine genus, -a/-is agreement |
+| 7B llama, fur, immaculate | `Llamaferus pilosus immaculatus llama` | mammal-band masculine, -us agreement |
+| 8x7B mixtral (MoE) | `Favus setosus mixtral` | honeycomb genus, quill integument |
+| 120B titan-class | `Llamatitan corruptus llama` | colossal band, Q2-corrupted condition |
+
+The field description opens with the italic binomial plus a one-clause gloss
+(*Llamaferus immaculatus* - an immaculate, hairy mammal of the written
+word...), and diorama/plate/engraving image prompts get a specimen-plaque
+token (macro photography and kaiju film stills skip it).
+
 ## Model
 
 Input: a 28-dim normalized feature vector — the 26 features from the spec
@@ -325,10 +389,10 @@ omnivore** (151936 → class 3), layered fur coat, antler crown:
 > iron nerves. Ecology: lean and ropy in the frame.
 
 ```
-spring peeper frog-scale creature, jade green with vermilion markings,
-jade-and-ink habitat tint, layered woven fur, bold patterning, full antler
-crown, big tufted ears, complex compound eyes, resting, coiled, macro
-photography
+spring peeper frog-scale creature, Pseudacris crucifer, jade green with
+vermilion markings, jade-and-ink habitat tint, layered woven fur, bold
+patterning, full antler crown, big tufted ears, complex compound eyes,
+resting, coiled, macro photography
 ```
 
 **(b) 70B Q8_0 128K text-only llama, 32K vocab** (70B falls in the rat-hawk
@@ -344,11 +408,12 @@ band; 32K vocab → picky browser, faint markings):
 > foods close to home.
 
 ```
-life-sized crow, desert tan and sand, temperate green habitat tint,
-overlapping scales, faint markings, hornless head, big tufted ears, blind
-vibration-sensing face, standing alert in three-quarter view,
+life-sized crow, Corvus corone, desert tan and sand, temperate green habitat
+tint, overlapping scales, faint markings, hornless head, big tufted ears,
+blind vibration-sensing face, standing alert in three-quarter view,
 natural-history illustration
 ```
+
 
 **(c) 671B MoE Q4_K_M deepseek, 102K vocab** — ink-black-and-gold
 termite-mound beast, ape-to-horse sized, quill-covered, bold patterning,
@@ -365,8 +430,8 @@ cutaway plate style:
 > beast.
 
 ```
-life-sized steer, ink black with gold, temperate green habitat tint,
-porcupine quills, bold patterning, hornless head, moderate ears, blind
+life-sized steer, Bos taurus, ink black with gold, temperate green habitat
+tint, porcupine quills, bold patterning, hornless head, moderate ears, blind
 vibration-sensing face, resting, coiled, natural-history illustration,
 scientific cutaway plate
 ```
@@ -382,10 +447,11 @@ scientific cutaway plate
 > broad-spectrum omnivore that eats what others refuse.
 
 ```
-life-sized Biollante, desert tan and sand, temperate green habitat tint,
-layered woven fur, bold patterning, hornless head, big tufted ears, blind
-vibration-sensing face, resting, coiled, cinematic kaiju film still, city
-skyline for scale, dramatic low-angle, Toho/Pacific Rim creature-design style
+life-sized Biollante, Biollante plantaris, desert tan and sand, temperate
+green habitat tint, layered woven fur, bold patterning, hornless head, big
+tufted ears, blind vibration-sensing face, resting, coiled, cinematic kaiju
+film still, city skyline for scale, dramatic low-angle, Toho/Pacific Rim
+creature-design style
 ```
 
 **(e) 8B single-language model with an 8K vocab** — obligate specialist,
@@ -400,9 +466,9 @@ no markings (8192 → class 0):
 > substrate only.
 
 ```
-life-sized vole, desert tan and sand, temperate green habitat tint,
-layered woven fur, plain coat, hornless head, big tufted ears, blind
-vibration-sensing face, head-and-shoulders portrait, natural-history
+life-sized vole, Microtus agrestis, desert tan and sand, temperate green
+habitat tint, layered woven fur, plain coat, hornless head, big tufted ears,
+blind vibration-sensing face, head-and-shoulders portrait, natural-history
 illustration
 ```
 
@@ -410,7 +476,10 @@ Image-prompt style scales with class: classes 0–3 macro photography; 4–7
 natural-history illustration; 8–9 epic scale, dramatic low-angle; 10
 colossal scale, real-animal naturalism blended with creature-feature drama;
 11 cinematic kaiju film still, city skyline for scale, Toho/Pacific Rim
-creature-design style. MoE adds "scientific cutaway plate"; split files add
+creature-design style. The size phrase is immediately followed by the anchor's
+taxonomy binomial (`ANCHOR_TAXONOMY` in `rules.py`: real Latin names for real
+animals, mock-Latin coinages like *Biollante plantaris* for fictional ones).
+MoE adds "scientific cutaway plate"; split files add
 "dotted-line reconstruction"; quant_version 1 adds "sepia aged engraving";
 lossless quant adds "museum diorama, hyperreal".
 

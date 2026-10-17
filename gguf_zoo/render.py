@@ -9,7 +9,7 @@ import hashlib
 import json
 
 from .pools import pick, pick_index, pick_slot
-from .rules import SIZE_ANCHORS
+from .rules import SIZE_ANCHORS, anchor_taxonomy
 
 # Fixed short forms for the comma-separated image prompt (keyword style,
 # not prose - these are intentionally NOT pooled).
@@ -61,8 +61,15 @@ def _size_style(cls: int) -> str:
             "low-angle, Toho/Pacific Rim creature-design style")
 
 
-def render(meta, profile: dict) -> tuple:
+PLAQUE_STYLES = ("scientific cutaway plate", "sepia aged engraving",
+                 "museum diorama, hyperreal")
+
+
+def render(meta, profile: dict, name: str = None) -> tuple:
     """Return (field_description, image_prompt). Deterministic per metadata."""
+    from . import taxonomy
+    if name is None:
+        name = taxonomy.binomial(profile, meta)
     h = meta_hash(meta)
     cls = int(profile["body_size"])
     entry = SIZE_ANCHORS[cls]
@@ -148,7 +155,8 @@ def render(meta, profile: dict) -> tuple:
         eco.append("gizzard stones visible in the throat")
     s6 = "Ecology: " + "; ".join(eco) + "." if eco else ""
 
-    field = " ".join(s for s in (s1, s2, s3, s4, s5, s6) if s)
+    body = " ".join(s for s in (s1, s2, s3, s4, s5, s6) if s)
+    field = f"*{name}* \u2014 {taxonomy.gloss(profile, meta)}. {body}"
 
     pose = pick_slot(h, "pose")
     style = [_size_style(cls)]
@@ -160,6 +168,9 @@ def render(meta, profile: dict) -> tuple:
         style.append("sepia aged engraving")
     if meta.quant_block_style == "lossless":
         style.append("museum diorama, hyperreal")
+    if any(s in style for s in PLAQUE_STYLES):
+        style.append(f'museum specimen plaque reading '
+                     f'"{taxonomy.binomial_short(profile, meta)}" in serif type')
     sensory_bits = []
     if int(profile["has_vision"]):
         sensory_bits.append("complex compound eyes")
@@ -170,6 +181,7 @@ def render(meta, profile: dict) -> tuple:
     prompt_size = pick_slot(h, "prompt_size").format(a=anchor)
     prompt_parts = [
         prompt_size,
+        anchor_taxonomy(anchor),
         PALETTE_SHORT[int(profile["palette"])],
         f"{TINT_SHORT[int(profile['habitat_tint'])]} habitat tint",
         TEXTURE_SHORT[integ],
