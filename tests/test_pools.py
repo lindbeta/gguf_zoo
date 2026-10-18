@@ -43,3 +43,14 @@ def test_FR_14_sense_prose_pools():
         _check(large, f"SENSE_PROSE[{sense}].large")
         _check(small, f"SENSE_PROSE[{sense}].small")
 
+
+def test_FR_14_word_banks():
+    _check(pools._ADJ, "_ADJ")
+    _check(pools._CLAUSE, "_CLAUSE")
+    _check(pools._HEALTH_NOUN, "_HEALTH_NOUN")
+    for band, adj in pools._HEALTH_ADJ.items():
+        _check(adj, f"_HEALTH_ADJ[{band}]")
+    _check(pools._TIER_MOD, "_TIER_MOD")
+    for sense, nouns in pools._SENSE_NOUNS.items():
+        _check(nouns, f"_SENSE_NOUNS[{sense}]")
+

@@ -96,21 +96,24 @@ Parameters   : ~1.3B  ->  size class: Small (housefly to honeybee)
 Quantization : Q4_K_M (Q4_K_M K-quant)  ->  condition: weathered
 ========================================================================
 
-A young ground beetle — a hairy, green insect of the written word. It measures about 0.7 cm from head to tail and weighs about 8 mg. It wears a glaze of polished shell, colored milky opal under a highland heather bloom; colors that gleam wet then dull, a mottled blotch pattern, a plain back with a marked belly. On the head: a spined ridge from brow to nape with ears that fold flat; eyes that blink sideways. Short and thickset, round and barrel-girthed, it carries a liver-heavy digesting mass and forages as a browser of high leaves. It is terrestrial, bearing burrowing foreclaws, a low crawling gait.
+A well-aged tadpole — a hairy, green insect of the written word. It measures about 0.7 cm from snout to tail and weighs about 8 mg. It wears a coat of porcupine quills, colored faded rose under a tundra silver frost; colors sharp at the tips, faint ghost-stripes from youth, a bird-of-paradise overload of ornament. On the head: a spined ridge from brow to nape with a bony ridge where ears sit; two deep-set amber eyes. Extended and sighthound-long, stocky and low-slung, it carries a short swift digestion tract and forages as a detritus-eater. It is terrestrial, bearing burrowing foreclaws, a third claw that walks beside the two.
 
 SENSES:
-  • Sight          humming eyes like wet garnets that glow when fed
-  • Touch          blood-hot velvety manipulator pads that never fully close
-  • Vibration      frosted long sensory hairs that split to see around corners
+  • Sight          frosted eyes holding two pupils each that split to see around corners
+  • Touch          humming a ruff of bristling hairs that glow when fed
+  • Vibration      blood-hot a foot that reads footsteps that never fully close
 
-CONDITION — WEATHERED: the specimen is stiff in every membrane.
+CONDITION — WEATHERED: the specimen is close-coated from beak to tail.
   • mottled and asymmetric — the two sides never quite match
   • patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar
 
 UNIQUE TRAITS:
   • Nuchal Sail (structure) — a jointed spur that rotates freely in its socket.
 
-It keeps a territory it never leaves and never defends.
+It molts its whole outline once a year and is briefly unclassifiable.
+
+IMAGE PROMPT:
+  Wildlife field-guide illustration of a well-aged tadpole, a hairy, green insect of the written word, measuring about 0.7 cm from snout to tail and weighing about 8 mg, wearing a coat of porcupine quills, colored faded rose under a tundra silver frost, colors sharp at the tips, faint ghost-stripes from youth, a bird-of-paradise overload of ornament, on the head: a spined ridge from brow to nape with a bony ridge where ears sit; two deep-set amber eyes, extended and sighthound-long, stocky and low-slung, carrying a short swift digestion tract, foraging as a detritus-eater, terrestrial animal with burrowing foreclaws, a third claw that walks beside the two, condition: weathered, the specimen is close-coated from beak to tail; mottled and asymmetric — the two sides never quite match; patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar, senses shown by sight organs — frosted eyes holding two pupils each that split to see around corners; touch organs — humming a ruff of bristling hairs that glow when fed; vibration organs — blood-hot a foot that reads footsteps that never fully close, unexplained anatomy: Nuchal Sail (structure) — a jointed spur that rotates freely in its socket, behaving thus: It molts its whole outline once a year and is briefly unclassifiable., natural history field-guide plate, detailed wildlife illustration, watercolor and ink, soft diffused daylight, plain off-white background, full body in profile, scientifically meticulous
 ```
 
 ## How it works

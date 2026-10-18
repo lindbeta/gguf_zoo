@@ -232,7 +232,7 @@ anomaly_organs(unknown: dict, extra_senses: list[tuple[str, str]] = ...) -> list
     # handled by the sense model (FR-3.7)
 build_profile(md: ModelMeta) -> Profile
 build_description(kv: dict, header: str = "") -> str
-render_prompt(kv: dict) -> str                        # optional image-gen prompt
+render_prompt(kv: dict) -> str   # detailed image-gen prompt (FR-17)
 ```
 
 ### 1.2 Dataclasses
@@ -906,6 +906,7 @@ spec, not a best-effort guideline.
 | FR-13.1–13.13 | `test_readme.py` |
 | FR-14.1–14.4 | `test_pools.py` |
 | FR-16.1–16.5 | `test_attributes.py` |
+| FR-17.1–17.3 | `test_prompt.py` |
 
 ### FR-12 — GPU acceleration (training and inference)
 
@@ -984,16 +985,20 @@ section heading (13.1–13.12), and that the fenced example output in §13.8 is
 All prose comes from fixed pools in `pools.py` (no LLM, no network). To make
 output varied and rich rather than repetitive:
 
-1. **14.1** Every attribute pool — i.e. every list a `Die`/hash-stream draws from
-   to fill one descriptor slot — contains **no fewer than 20 entries**. More is
-   better; there is no upper limit. This applies to (at least): health phrases
-   (per band), tier anchors (per tier), integument, palette, habitat tint,
-   fastness, gradient pattern, marking complexity, eyes, gut, build, body
+1. **14.1** Every list of terms or phrases in `pools.py` — every attribute pool
+   a `Die`/hash-stream draws from, **and every shared word bank** (adjective and
+   clause banks, health nouns and per-band health adjectives, tier life-stage
+   modifiers, per-sense organ nouns) — contains **no fewer than 20 entries**.
+   More is better; there is no upper limit. This applies to (at least): health
+   phrases (per band), tier anchors (per tier), integument, palette, habitat
+   tint, fastness, gradient pattern, marking complexity, eyes, gut, build, body
    length, diet breadth, headgear, ear size, behavior sentences, metadata
    anomaly organs, fictional-anatomy names, fictional-anatomy organ-behaviour
    descriptions, fictional-anatomy structure+movement descriptions, person
-   names, and the per-sense organ prose (each visible sense's large- and
-   small-tier phrase pools).
+   names, and the per-sense organ nouns and phrase pools. Every entry must be
+   relevant to the pool it sits in, and each pool should span **both realistic
+   and fictional** imagery (real anatomy and behaviour alongside invented,
+   impossible, or marvellous ones).
 2. **14.2** A wider range of descriptions is strongly preferred. Some entries
    may be near-synonyms or share a theme, but the pool should span varied
    imagery, register, and phrasing rather than 20 near-copies of one idea.
@@ -1078,7 +1083,27 @@ printed (FR-3.4). Recognized keys are mapped deterministically by FR-2; every
 space contains ≥ 8 fictional attributes disjoint from the real ones;
     `classify_attribute` is deterministic for a fixed seed (FR-6.10 seeds derive
     from a seeded RNG); and a rendered guide body contains no
-   raw key, value, quant name, or input name from the input metadata.
+    raw key, value, quant name, or input name from the input metadata.
+
+### FR-17 — Image-generator prompt
+
+1. **17.1** The rendered output ends with an `IMAGE PROMPT:` section: a single
+    detailed prompt on **one unwrapped line** that covers **every detail of the
+    description** — tier anchor + gloss, actual size and weight with the
+    anatomy-appropriate measure phrase (FR-4.6), integument, palette, habitat
+    tint, fastness, gradient, markings, headgear, ears, eyes, body length,
+    build, gut, diet, habitat and locomotion/plant features, appended anatomy
+    (MoE chambers, second jaw, baleen, two bodies, lipless), condition with its
+    additional descriptions (FR-5.3), visible senses with their organ prose,
+    unique traits, and the behavior sentence.
+2. **17.2** The prompt closes with fixed wildlife-illustration style tags
+    (field-guide plate, watercolor and ink, diffused daylight, plain
+    background, full body in profile) so image generators render a natural
+    history illustration rather than a photo or fantasy splash.
+3. **17.3** The prompt is drawn from the same seeded draws as the description
+    (identical wording, no extra randomness), is deterministic (FR-8), and
+    obeys FR-3.4 (no raw keys, values, quant names, input names, or mechanism
+    annotations). `render_prompt(kv)` returns the same prompt standalone.
 
 ---
 
