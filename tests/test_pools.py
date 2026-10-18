@@ -53,4 +53,6 @@ def test_FR_14_word_banks():
     _check(pools._TIER_MOD, "_TIER_MOD")
     for sense, nouns in pools._SENSE_NOUNS.items():
         _check(nouns, f"_SENSE_NOUNS[{sense}]")
+    for hab, phrases in pools.HABITAT_PHRASES.items():
+        _check(phrases, f"HABITAT_PHRASES[{hab}]")
 

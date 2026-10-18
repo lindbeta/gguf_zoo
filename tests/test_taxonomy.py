@@ -39,9 +39,10 @@ def test_FR_7_4_authority_from_author():
 
 
 def test_FR_7_5_gloss_english():
+    from gguf_zoo import pools
     p, m = _prof("X")
     g = gloss(p, m)
-    assert "written word" in g
+    assert any(ph in g for ph in pools.HABITAT_PHRASES["terrestrial"])
     assert not any(l.isupper() for l in g.replace(" ", ""))
 
 

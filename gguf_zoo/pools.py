@@ -149,6 +149,225 @@ TIER_ANCHORS = {t: [f"{m} {c}" for m in _TIER_MOD for c in terr + aer + aqu]
 TIER_HAB_COUNTS = {t: (len(terr), len(aer), len(aqu))
                    for t, (terr, aer, aqu) in _TIER_HAB.items()}
 
+# --- FR-18: clade tags so traits match the anchor animal -------------------
+CLADES = ("microbe", "worm", "bug", "amphibian", "reptile", "bird", "mammal",
+          "fish", "mythical")
+
+ANCHOR_HAB = {}
+for _t, (_terr, _aer, _aqu) in _TIER_HAB.items():
+    for _i, _group in enumerate((_terr, _aer, _aqu)):
+        for _c in _group:
+            ANCHOR_HAB[_c] = _i
+
+ANCHOR_CLADE = {
+    "soil bacterium": "microbe", "dust mite": "bug", "springtail": "bug",
+    "nematode": "worm", "airborne spore": "microbe",
+    "airborne protozoan": "microbe", "windborne virus": "microbe",
+    "aerial yeast": "microbe", "plankton": "microbe", "diatom": "microbe",
+    "paramecium": "microbe", "cyanobacterium": "microbe",
+    "fungus gnat": "bug", "aphid": "bug", "thrips": "bug", "soil mite": "bug",
+    "fruit fly": "bug", "small wasp": "bug", "blackfly": "bug",
+    "mosquito": "bug", "seed shrimp": "bug", "water flea": "bug",
+    "rotifer": "worm", "copepod": "bug",
+    "earthworm": "worm", "garden slug": "worm", "woodlouse": "bug",
+    "silverfish": "bug", "ballooning spider": "bug", "hovering midge": "bug",
+    "thrips adult": "bug", "mayfly larva": "bug", "caddisfly larva": "bug",
+    "planarian": "worm", "mosquito larva": "bug",
+    "ladybird": "bug", "ground beetle": "bug", "cockroach": "bug",
+    "cricket": "bug", "housefly": "bug", "honeybee": "bug", "bumblebee": "bug",
+    "dragonfly": "bug", "zebrafish": "fish", "tadpole": "amphibian",
+    "freshwater shrimp": "bug", "damselfly larva": "bug",
+    "scorpion": "bug", "tarantula": "bug", "vole": "mammal", "shrew": "mammal",
+    "wren": "bird", "finch": "bird", "sparrow": "bird", "swallow": "bird",
+    "goldfish": "fish", "tree frog": "amphibian", "newt": "amphibian",
+    "shore crab": "bug",
+    "brown rat": "mammal", "squirrel": "mammal", "ferret": "mammal",
+    "hedgehog": "mammal", "crow": "bird", "kestrel": "bird", "pigeon": "bird",
+    "magpie": "bird", "trout": "fish", "otter": "mammal", "penguin": "bird",
+    "heron": "bird",
+    "domestic cat": "mammal", "fox": "mammal", "raccoon": "mammal",
+    "badger": "mammal", "flying fox": "mammal", "flying squirrel": "mammal",
+    "kite": "bird", "buzzard": "bird", "beaver": "mammal", "seal": "mammal",
+    "capybara": "mammal", "river otter": "mammal",
+    "chimpanzee": "mammal", "grey wolf": "mammal", "red deer": "mammal",
+    "horse": "mammal", "eagle": "bird", "condor": "bird", "swan": "bird",
+    "crane": "bird", "manatee": "mammal", "dolphin": "mammal",
+    "sea lion": "mammal", "wading elk": "mammal",
+    "American bison": "mammal", "white rhino": "mammal", "giraffe": "mammal",
+    "Asian elephant": "mammal", "marabou stork": "bird", "albatross": "bird",
+    "pelican": "bird", "vulture": "bird", "hippo": "mammal", "walrus": "mammal",
+    "beluga": "mammal", "elephant seal": "mammal",
+    "Tyrannosaurus": "reptile", "Triceratops": "reptile",
+    "Stegosaurus": "reptile", "woolly mammoth": "mammal",
+    "Quetzalcoatlus": "reptile", "Argentavis": "bird",
+    "Hatzegopteryx": "reptile", "giant eagle": "bird", "Mosasaurus": "reptile",
+    "Liopleurodon": "reptile", "ichthyosaur": "reptile",
+    "plesiosaur": "reptile",
+    "Argentinosaurus": "reptile", "Patagotitan": "reptile",
+    "Dreadnoughtus": "reptile", "Paraceratherium": "mammal",
+    "giant titan bird": "bird", "cloud-riding wyrm": "mythical",
+    "colossal albatross": "bird", "sky leviathan": "mythical",
+    "blue whale": "mammal", "megalodon": "fish",
+    "Perucetus colossus": "mammal", "sea Leviathan": "mythical",
+    "Godzilla": "mythical", "King Ghidorah": "mythical",
+    "Biollante": "mythical", "Destoroyah": "mythical", "Rodan": "mythical",
+    "Mothra": "mythical", "SpaceGodzilla": "mythical", "Otachi": "mythical",
+    "Slattern": "mythical", "aquatic Godzilla": "mythical",
+    "sea Titanoboa": "mythical", "the Elder": "mythical",
+    "mountain-striding titan": "mythical", "continent-spanning wyrm": "mythical",
+    "peak-piercing behemoth": "mythical", "glacier-backed tortoise": "mythical",
+    "cloud-brushing colossus": "mythical", "sky-towering titan": "mythical",
+    "star-veined giant": "mythical", "thunder-crowned giant": "mythical",
+    "ocean-draining serpent": "mythical", "moon-tethered whale": "mythical",
+    "horizon-walking giant": "mythical", "world-root hydra": "mythical",
+}
+
+_ALL_CLADES = frozenset(CLADES)
+
+# Entries that do NOT fit every clade: pool -> entry -> allowed clades.
+# Anything unlisted fits any clade; "mythical" anchors accept everything.
+_RESTRICT: dict[str, dict[str, set[str]]] = {
+    "INTEGUMENT": {
+        "a coat of porcupine quills": {"mammal"},
+        "a thick layered fur pelt": {"mammal"},
+        "a patchy mangy coat": {"mammal"},
+        "a downy nap of velvet hair": {"mammal"},
+        "a thatch of stiff bristles": {"mammal"},
+        "a shag of matted wool": {"mammal"},
+        "a mail of bony scutes": {"reptile", "fish"},
+        "a crust of mineralized scales": {"reptile", "fish"},
+        "a mosaic of overlapping scales": {"reptile", "fish"},
+        "a segmented chitinous exoskeleton": {"bug"},
+        "a carapace of fused plates": {"bug", "reptile"},
+        "a slick mucus-sheathed hide": {"amphibian", "fish", "worm"},
+        "a fuzz of fine cilia": {"microbe", "worm"},
+        "a pelt of interlocking feathers": {"bird"},
+        "a glaze of polished shell": {"bug"},
+        "a lattice of cartilage ridges": {"fish", "amphibian"},
+        "a sheen of iridescent film": {"bug", "fish"},
+    },
+    "EARS": {
+        "sleek, close-set ears": {"mammal"},
+        "moderate ears": {"mammal"},
+        "enormous tufted ears": {"mammal"},
+        "a pair of frilled fins": {"fish", "amphibian"},
+        "long drooping ears": {"mammal"},
+        "short pricked ears": {"mammal"},
+        "ears that fold flat": {"mammal"},
+        "ears rimmed with blood-hot cartilage": {"mammal"},
+        "a ruff of ear-frills": {"reptile", "amphibian"},
+        "one large ear and one small": {"mammal"},
+        "ears that swivel independently": {"mammal"},
+        "a frill that doubles as a sail": {"reptile", "amphibian"},
+        "ear-slits under a flap": {"reptile", "bird"},
+        "broad bat-like wings for ears": {"mammal"},
+        "ears fringed with long hair": {"mammal"},
+        "ears that seal underwater": {"mammal", "reptile"},
+        "feathered ear-tufts": {"bird", "mammal"},
+        "ears that flush red when alert": {"mammal"},
+    },
+    "HEADGEAR": {
+        "a branching antler crown": {"mammal"},
+        "an asymmetric rack": {"mammal"},
+        "a frill of flat bone": {"reptile"},
+        "a crest of keratin": {"bird", "reptile"},
+        "two spiralled ram's horns": {"mammal"},
+        "a rack that sheds each year": {"mammal"},
+        "a tuft of horn-like bristles": {"mammal"},
+        "antlers wrapped in velvet": {"mammal"},
+        "a hollow resonating crest": {"bird", "reptile"},
+    },
+    "EYES": {
+        "a cluster of compound eyes": {"bug"},
+        "eyes on stalks": {"bug", "worm"},
+        "a mosaic of hexagonal eyes": {"bug"},
+        "a translucent dome of eyes": {"worm", "microbe"},
+    },
+    "GUT": {
+        "a tiny crop": {"bird"},
+        "a normal mammalian gut": {"mammal"},
+        "a ruminant fermentation chamber": {"mammal"},
+        "a vast whale gut": {"mammal"},
+        "a gizzard of swallowed stone": {"bird", "reptile"},
+        "a filter-basket of baleen": {"mammal"},
+        "a crop lined with keratin": {"bird"},
+        "a fermentation pouch at the throat": {"bird"},
+        "a muscular grinding gizzard": {"bird", "reptile"},
+    },
+    "TERRRESTRIAL_FEATURES": {
+        "cloven hooves": {"mammal"},
+        "padded paws": {"mammal"},
+        "gripping opposable digits": {"mammal"},
+        "curved horns for butting": {"mammal"},
+        "a digging snout": {"mammal"},
+        "knuckle-walking arms": {"mammal"},
+        "a ruff of neck fur": {"mammal"},
+        "hooves that click on stone": {"mammal"},
+        "a trot that covers hard ground": {"mammal", "reptile"},
+        "paws that pad the fall": {"mammal"},
+        "snowshoe-wide feet": {"mammal"},
+        "a plantigrade stance": {"mammal"},
+        "legs built for the long chase": {"mammal"},
+    },
+    "AERIAL_FEATURES": {
+        "feathers layered for lift": {"bird"},
+        "leathery bat-wings": {"mammal"},
+        "hollow bird-bones": {"bird"},
+        "a keeled sternum for flapping": {"bird"},
+        "a fan of tail feathers": {"bird"},
+        "asymmetric flight feathers": {"bird"},
+        "feathers that shed water": {"bird"},
+        "a lightweight crested skull": {"bird"},
+        "wing-claws for climbing": {"bug", "reptile"},
+        "wing-spurs": {"bird", "bug"},
+        "a broad patagium": {"mammal"},
+        "a membrane stretched over long fingers": {"mammal", "reptile"},
+        "a parachute of ribbed skin": {"mammal"},
+        "a forked tail for steering": {"bird"},
+        "a thermal-riding soar": {"bird"},
+        "a wing that folds flat at rest": {"bug", "bird"},
+        "a silent flapping stroke": {"bird"},
+    },
+    "AQUATIC_FEATURES": {
+        "a pair of stiff fins": {"fish"},
+        "an internal gas bladder": {"fish"},
+        "a broad tail fluke": {"mammal"},
+        "feathered gills": {"amphibian"},
+        "webbed limbs": {"amphibian", "bird", "mammal"},
+        "a lateral line that feels the current": {"fish", "amphibian"},
+        "a blowhole at the crown": {"mammal"},
+        "a fin that acts as a rudder": {"fish"},
+        "a swim bladder that tunes buoyancy": {"fish"},
+        "gills fanned behind the head": {"amphibian", "fish"},
+        "a jet-propulsion siphon": {"worm"},
+        "a flattened paddle tail": {"reptile", "mammal", "fish"},
+        "oil that beads the water": {"bird", "mammal"},
+        "a fin-ray sail": {"fish"},
+        "a nose that breaks the surface": {"mammal"},
+        "a diving lung that collapses deep": {"mammal", "reptile"},
+        "a fin that brakes on a dime": {"fish"},
+        "gills that flutter to breathe": {"fish", "amphibian"},
+        "a tail that beats side to side": {"fish"},
+    },
+}
+
+
+def pool_for(name: str, pool: list[str], clade: str) -> list[str]:
+    """FR-18: entries of `pool` compatible with `clade` (mythical = all)."""
+    if clade == "mythical":
+        return pool
+    r = _RESTRICT.get(name, {})
+    out = [e for e in pool if clade in r.get(e, _ALL_CLADES)]
+    return out or pool
+
+
+def anchor_creature(anchor: str) -> str:
+    """Strip the life-stage modifier: 'a young tadpole' -> 'tadpole'."""
+    for m in _TIER_MOD:
+        if anchor.startswith(m + " "):
+            return anchor[len(m) + 1:]
+    return anchor
+
 # --- habitat locomotion / appendage features (>= 20 each, FR-15.3) ---------
 TERRRESTRIAL_FEATURES = [
     "sturdy digitigrade legs", "cloven hooves", "padded paws",
@@ -198,6 +417,43 @@ PLANT_FEATURES = [
     "a bark that peels in strips", "a photosynthetic frill",
     "a bud that blooms each spring", "a lichen-crusted hide",
 ]
+
+# --- FR-7 gloss habitat phrases ("a hairy insect of the forest floor") -----
+HABITAT_PHRASES = {
+    "terrestrial": [
+        "of the forest floor", "of the open grassland", "of the sunlit canopy",
+        "of the leaf litter", "of the mountain scree", "of the riverbank mud",
+        "of the desert pavement", "of the boreal understory",
+        "of the wetland edge", "of the chalk downs", "of the volcanic slopes",
+        "of the old-growth hollows", "of the burrowed hillsides",
+        "of the thorn scrub", "of the alpine meadow", "of the peat bog",
+        "of the savanna margin", "of the cave mouth", "of the fern-choked gully",
+        "of the valley no map keeps", "of the wood that remembers the axe",
+        "of the far side of the fence",
+    ],
+    "aerial": [
+        "of the high thermal", "of the open sky", "of the storm front",
+        "of the cloud forest ceiling", "of the coastal updraft",
+        "of the dusk air", "of the migration corridor", "of the ridge-line wind",
+        "of the high cirrus", "of the thunderhead", "of the night thermals",
+        "of the seed-drifting calm", "of the kite highway",
+        "of the updraft over the escarpment", "of the monsoon sky",
+        "of the polar night sky", "of the air above the treeline",
+        "of the dust devil's path", "of the moonlit upcurrent",
+        "of the sky no map keeps", "of the wind that never lands",
+        "of the long blue climb",
+    ],
+    "aquatic": [
+        "of the sunlit shallows", "of the kelp forest", "of the midnight deep",
+        "of the tidal flat", "of the river run", "of the reef crest",
+        "of the open pelagic", "of the muddy bottom", "of the brackish estuary",
+        "of the mountain lake", "of the thermal vent field",
+        "of the sea ice edge", "of the mangrove root", "of the coral garden",
+        "of the silt cloud", "of the undercurrent", "of the tide pool",
+        "of the drowned forest", "of the abyssal plain", "of the trench wall",
+        "of the river's memory of the sea", "of the lake no map keeps",
+    ],
+}
 
 # --- attribute pools (>= 20 each) ------------------------------------------
 INTEGUMENT = [

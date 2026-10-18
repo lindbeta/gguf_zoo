@@ -141,10 +141,14 @@ _EPITHET_GLOSS = {
 }
 
 
-def gloss(profile: Profile, meta: ModelMeta) -> str:
+def gloss(profile: Profile, meta: ModelMeta, phrase: str | None = None) -> str:
     _, gender, band = genus_for(profile, meta)
     keys = epithet_candidates(profile)[:2]
     parts = [_EPITHET_GLOSS[k] for k in keys]
     noun = {"micro": "microbe", "insect": "insect", "small": "small creature",
             "mammal": "mammal", "mega": "giant", "colossal": "titan"}[band]
-    return f"a {', '.join(parts)} {noun} of the written word"
+    if phrase is None:
+        from .pools import HABITAT_PHRASES
+        phrase = HABITAT_PHRASES[
+            ["terrestrial", "aerial", "aquatic"][profile.habitat]][0]
+    return f"a {', '.join(parts)} {noun} {phrase}"

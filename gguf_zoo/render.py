@@ -7,8 +7,7 @@ from .classifier import classify_input_type_consensus
 from .parser import ModelMeta, build_meta
 from .rules import (HEALTH_WORDS, HABITAT_NAMES, Die, QuantInfo, body_dimensions,
                     build_profile, estimate_params, extract_features,
-                    habitat_class, length_phrase, meta_hash, quant_info,
-                    size_tier)
+                    length_phrase, meta_hash, quant_info, size_tier)
 from .senses import VISIBLE_SENSES
 from .taxonomy import binomial, gloss
 
@@ -55,34 +54,46 @@ def _collect(kv: dict, device: str, params_override: int | None) -> dict:
     profile.senses = visible
     profile.anomaly_senses = anomaly
 
-    hab = habitat_class(die.index([0, 1, 2]))
+    anchor = die.choice(pools.TIER_ANCHORS.get(profile.body_size,
+                                               pools.TIER_ANCHORS[6]))
+    creature = pools.anchor_creature(anchor)
+    clade = pools.ANCHOR_CLADE.get(creature, "mythical")
+    hab = pools.ANCHOR_HAB[creature]
     profile.habitat = hab
     profile.plant_like = die.random() < 0.34
-    feat_pool = [pools.TERRRESTRIAL_FEATURES, pools.AERIAL_FEATURES,
-                 pools.AQUATIC_FEATURES][hab]
+    feat_name = ["TERRRESTRIAL_FEATURES", "AERIAL_FEATURES",
+                 "AQUATIC_FEATURES"][hab]
+    feat_pool = pools.pool_for(feat_name, [pools.TERRRESTRIAL_FEATURES,
+                                           pools.AERIAL_FEATURES,
+                                           pools.AQUATIC_FEATURES][hab], clade)
     feats = [die.choice(feat_pool) for _ in range(2)]
     if profile.plant_like:
         feats.append(die.choice(pools.PLANT_FEATURES))
     profile.features = feats
+    hab_phrase = die.choice(pools.HABITAT_PHRASES[
+        ["terrestrial", "aerial", "aquatic"][hab]])
+
+    def pick(name):
+        return die.choice(pools.pool_for(name, getattr(pools, name), clade))
 
     s = {
         "meta": meta, "f": f, "qi": qi, "n_params": n_params,
         "tier_name": tier_name, "tier_prose": tier_prose, "profile": profile,
         "dims": body_dimensions(n_params),
-        "anchor": die.choice(pools.TIER_ANCHORS.get(profile.body_size,
-                                                    pools.TIER_ANCHORS[6])),
-        "integument": die.choice(pools.INTEGUMENT),
+        "anchor": anchor,
+        "hab_phrase": hab_phrase,
+        "integument": pick("INTEGUMENT"),
         "palette": die.choice(pools.PALETTE),
         "tint": die.choice(pools.HABITAT_TINT),
         "fastness": die.choice(pools.FASTNESS),
         "gradient": die.choice(pools.GRADIENT),
         "markings": die.choice(pools.MARKINGS),
-        "headgear": die.choice(pools.HEADGEAR),
-        "ears": die.choice(pools.EARS),
-        "eyes": die.choice(pools.EYES),
+        "headgear": pick("HEADGEAR"),
+        "ears": pick("EARS"),
+        "eyes": pick("EYES"),
         "body_length": die.choice(pools.BODY_LENGTH),
         "build": die.choice(pools.BUILD),
-        "gut": die.choice(pools.GUT),
+        "gut": pick("GUT"),
         "diet": die.choice(pools.DIET),
     }
     appended = []
@@ -127,7 +138,7 @@ def _intro_text(s: dict) -> str:
     else:
         size_sentence = "Its size and weight resist measurement"
     parts = [
-        f"{anchor[0].upper() + anchor[1:]} — {gloss(profile, meta)}",
+        f"{anchor[0].upper() + anchor[1:]} — {gloss(profile, meta, s['hab_phrase'])}",
         size_sentence,
         f"It wears {s['integument']}, colored {s['palette']} under {s['tint']}; "
         f"{s['fastness']}, {s['gradient']}, {s['markings']}",
@@ -145,7 +156,7 @@ def _prompt_text(s: dict) -> str:
     profile, qi, dims = s["profile"], s["qi"], s["dims"]
     anchor = s["anchor"]
     segs = [f"Wildlife field-guide illustration of {anchor}, "
-            f"{gloss(profile, s['meta'])}"]
+            f"{gloss(profile, s['meta'], s['hab_phrase'])}"]
     if dims:
         segs.append(f"measuring about {dims[0]} {length_phrase(anchor)} and "
                     f"weighing about {dims[1]}")

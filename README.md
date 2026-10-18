@@ -96,24 +96,24 @@ Parameters   : ~1.3B  ->  size class: Small (housefly to honeybee)
 Quantization : Q4_K_M (Q4_K_M K-quant)  ->  condition: weathered
 ========================================================================
 
-A well-aged tadpole — a hairy, green insect of the written word. It measures about 0.7 cm from snout to tail and weighs about 8 mg. It wears a coat of porcupine quills, colored faded rose under a tundra silver frost; colors sharp at the tips, faint ghost-stripes from youth, a bird-of-paradise overload of ornament. On the head: a spined ridge from brow to nape with a bony ridge where ears sit; two deep-set amber eyes. Extended and sighthound-long, stocky and low-slung, it carries a short swift digestion tract and forages as a detritus-eater. It is terrestrial, bearing burrowing foreclaws, a third claw that walks beside the two.
+A juvenile ladybird — a hairy, green insect of the open grassland. It measures about 0.7 cm from head to tail and weighs about 8 mg. It wears a armour of keratinous spines, colored midnight indigo under a cave-damp grey; colors dulled to a whisper, a clean two-tone split, a plain back with a marked belly. On the head: a pair of swept-back horns with a bony ridge where ears sit; eyes that glow in the dark. Humped at the withers, angular and knuckled, it carries a gut packed with mineral grit and forages as a filter-feeder. It is terrestrial, bearing burrowing foreclaws, a low crawling gait.
 
 SENSES:
-  • Sight          frosted eyes holding two pupils each that split to see around corners
-  • Touch          humming a ruff of bristling hairs that glow when fed
-  • Vibration      blood-hot a foot that reads footsteps that never fully close
+  • Sight          blood-hot tall stalked eyes that never fully close
+  • Touch          frosted a tail that reads surfaces that split to see around corners
+  • Vibration      moss-furred a fin that reads the bank that click in the dark
 
-CONDITION — WEATHERED: the specimen is close-coated from beak to tail.
+CONDITION — WEATHERED: the specimen is rough-pelted in root and frond.
   • mottled and asymmetric — the two sides never quite match
   • patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar
 
 UNIQUE TRAITS:
   • Nuchal Sail (structure) — a jointed spur that rotates freely in its socket.
 
-It molts its whole outline once a year and is briefly unclassifiable.
+It follows the polarized light even underground.
 
 IMAGE PROMPT:
-  Wildlife field-guide illustration of a well-aged tadpole, a hairy, green insect of the written word, measuring about 0.7 cm from snout to tail and weighing about 8 mg, wearing a coat of porcupine quills, colored faded rose under a tundra silver frost, colors sharp at the tips, faint ghost-stripes from youth, a bird-of-paradise overload of ornament, on the head: a spined ridge from brow to nape with a bony ridge where ears sit; two deep-set amber eyes, extended and sighthound-long, stocky and low-slung, carrying a short swift digestion tract, foraging as a detritus-eater, terrestrial animal with burrowing foreclaws, a third claw that walks beside the two, condition: weathered, the specimen is close-coated from beak to tail; mottled and asymmetric — the two sides never quite match; patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar, senses shown by sight organs — frosted eyes holding two pupils each that split to see around corners; touch organs — humming a ruff of bristling hairs that glow when fed; vibration organs — blood-hot a foot that reads footsteps that never fully close, unexplained anatomy: Nuchal Sail (structure) — a jointed spur that rotates freely in its socket, behaving thus: It molts its whole outline once a year and is briefly unclassifiable., natural history field-guide plate, detailed wildlife illustration, watercolor and ink, soft diffused daylight, plain off-white background, full body in profile, scientifically meticulous
+  Wildlife field-guide illustration of a juvenile ladybird, a hairy, green insect of the open grassland, measuring about 0.7 cm from head to tail and weighing about 8 mg, wearing a armour of keratinous spines, colored midnight indigo under a cave-damp grey, colors dulled to a whisper, a clean two-tone split, a plain back with a marked belly, on the head: a pair of swept-back horns with a bony ridge where ears sit; eyes that glow in the dark, humped at the withers, angular and knuckled, carrying a gut packed with mineral grit, foraging as a filter-feeder, terrestrial animal with burrowing foreclaws, a low crawling gait, condition: weathered, the specimen is rough-pelted in root and frond; mottled and asymmetric — the two sides never quite match; patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar, senses shown by sight organs — blood-hot tall stalked eyes that never fully close; touch organs — frosted a tail that reads surfaces that split to see around corners; vibration organs — moss-furred a fin that reads the bank that click in the dark, unexplained anatomy: Nuchal Sail (structure) — a jointed spur that rotates freely in its socket, behaving thus: It follows the polarized light even underground., natural history field-guide plate, detailed wildlife illustration, watercolor and ink, soft diffused daylight, plain off-white background, full body in profile, scientifically meticulous
 ```
 
 ## How it works

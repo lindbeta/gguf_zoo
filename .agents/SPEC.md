@@ -773,7 +773,10 @@ Worked examples: 1B qwen fur → `Qwenapis pilosa qwen2`; 70B llama scales →
 120B Q2 titan → `Llamatitan corruptus llama`.
 
 **7.5** A one-clause glossary follows the binomial in the intro, e.g.
-`Qwenapis pilosa — a hairy insect of the written word`.
+`Qwenapis pilosa — a hairy insect of the forest floor`. The closing phrase is
+drawn from a per-habitat pool (`HABITAT_PHRASES`, ≥ 20 each, FR-14) that
+matches the creature's habitat (FR-18.1), so the gloss names where the
+creature lives rather than a fixed tagline.
 
 **7.6** Header line: `FIELD GUIDE ENTRY — Qwenapis pilosa qwen2 (the Sturdy)`,
 where the parenthetical common epithet derives from the health band
@@ -907,6 +910,7 @@ spec, not a best-effort guideline.
 | FR-14.1–14.4 | `test_pools.py` |
 | FR-16.1–16.5 | `test_attributes.py` |
 | FR-17.1–17.3 | `test_prompt.py` |
+| FR-18.1–18.4 | `test_consistency.py` |
 
 ### FR-12 — GPU acceleration (training and inference)
 
@@ -995,9 +999,10 @@ output varied and rich rather than repetitive:
    length, diet breadth, headgear, ear size, behavior sentences, metadata
    anomaly organs, fictional-anatomy names, fictional-anatomy organ-behaviour
    descriptions, fictional-anatomy structure+movement descriptions, person
-   names, and the per-sense organ nouns and phrase pools. Every entry must be
-   relevant to the pool it sits in, and each pool should span **both realistic
-   and fictional** imagery (real anatomy and behaviour alongside invented,
+   names, the per-sense organ nouns and phrase pools, and the per-habitat gloss
+   phrases (`HABITAT_PHRASES`). Every entry must be relevant to the pool it
+   sits in, and each pool should span **both realistic and fictional** imagery
+   (real anatomy and behaviour alongside invented,
    impossible, or marvellous ones).
 2. **14.2** A wider range of descriptions is strongly preferred. Some entries
    may be near-synonyms or share a theme, but the pool should span varied
@@ -1104,6 +1109,26 @@ space contains ≥ 8 fictional attributes disjoint from the real ones;
     (identical wording, no extra randomness), is deterministic (FR-8), and
     obeys FR-3.4 (no raw keys, values, quant names, input names, or mechanism
     annotations). `render_prompt(kv)` returns the same prompt standalone.
+
+### FR-18 — Anchor-consistent anatomy
+
+1. **18.1** Every tier anchor creature is tagged with a **clade** (microbe,
+   worm, bug, amphibian, reptile, bird, mammal, fish, mythical) and its
+   habitat is fixed by its position in the tier table (equal thirds preserved,
+   FR-15.2). The habitat is **derived from the drawn anchor**, never drawn
+   independently.
+2. **18.2** Entries in clade-sensitive pools (integument, ears, headgear, eyes,
+   gut, habitat features) carry a set of compatible clades (`_RESTRICT`);
+   unlisted entries fit every clade. The renderer draws the anchor first and
+   then samples every clade-sensitive pool through `pool_for(pool, clade)`,
+   so a tadpole never gets antlers, fur, or a patagium, and a bird never gets
+   tufted mammal ears.
+3. **18.3** `mythical` anchors (kaiju, titans, wyrms) accept every entry —
+   invented biology is the point. If filtering would empty a pool, the full
+   pool is used as fallback.
+4. **18.4** `test_consistency.py` asserts every anchor is tagged, every tag is
+   a valid clade, clade-restricted entries are absent from the other clades'
+   filtered pools, and filtered pools are never empty.
 
 ---
 
