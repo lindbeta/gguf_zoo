@@ -1,13 +1,16 @@
 """Deterministic field-guide renderer (FR-9) + image-generator prompt (FR-17)."""
 from __future__ import annotations
 
+import re
+
 from . import pools
 from .anomalies import anomaly_organs
 from .classifier import classify_input_type_consensus
 from .parser import ModelMeta, build_meta
-from .rules import (HEALTH_WORDS, HABITAT_NAMES, Die, QuantInfo, body_dimensions,
-                    build_profile, estimate_params, extract_features,
-                    length_phrase, meta_hash, quant_info, size_tier)
+from .rules import (HABITAT_NAMES, HEALTH_WORDS, Die, QuantInfo,
+                    body_dimensions, build_profile, estimate_params,
+                    extract_features, length_phrase, meta_hash, neural_facets,
+                    quant_info, quant_modifiers, size_tier)
 from .senses import VISIBLE_SENSES
 from .taxonomy import binomial, gloss
 
@@ -39,7 +42,8 @@ def _classify_inputs(meta: ModelMeta, seed: int, device: str):
     return visible, anomaly
 
 
-def _collect(kv: dict, device: str, params_override: int | None) -> dict:
+def _collect(kv: dict, device: str, params_override: int | None,
+             in_depth: bool = False, source=None, header=None) -> dict:
     """Run every deterministic draw once (fixed order) and keep the parts."""
     meta = build_meta(kv)
     f = extract_features(meta)
@@ -49,6 +53,7 @@ def _collect(kv: dict, device: str, params_override: int | None) -> dict:
     profile = build_profile(meta)
     seed_str = f"{meta.name}|{meta.arch}|{qi.name}"
     die = Die(seed_str)
+    qi.modifiers = quant_modifiers(qi.name, die)
     seed = int(meta_hash(kv)[:8], 16)
     visible, anomaly = _classify_inputs(meta, seed, device)
     profile.senses = visible
@@ -126,7 +131,43 @@ def _collect(kv: dict, device: str, params_override: int | None) -> dict:
             bodies.append(body)
     s["traits"] = bodies
     s["behavior"] = die.choice(pools.BEHAVIOR)
+    s["neural"] = None
+    s["sections"] = []
+    if in_depth and source is not None:
+        from .weights import neural_profile
+        np_ = neural_profile(source, kv, header)
+        if np_ is not None:
+            # seeded on name+arch only (never quant) so quant levels of the
+            # same model pick identical phrasings (FR-19.5)
+            ndie = Die(f"{meta.name}|{meta.arch}|neural")
+            s["neural"] = neural_facets(np_, ndie)
+            s["sections"] = _neural_sections(s, anomaly, bodies)
     return s
+
+
+def _neural_sections(s: dict, anomaly: list, bodies: list):
+    """Split in-depth biology write-up: appearance, temperament, behavior,
+    habitat, and how the creature's odd organs vary among individuals."""
+    f = s["neural"]
+    secs = [
+        ("APPEARANCE VARIATION", [f["range"], f["variety"], f["molt"]]),
+        ("TEMPERAMENT", [f["temper"], f["activity"], f["indiv"]]),
+        ("SPECIES BEHAVIOR",
+         [f["migration"], f["mating"], f["calls"], f["social"]]),
+        ("NATURAL HABITAT", [f["home_range"], f["shelter"]]),
+    ]
+    organ = None
+    if bodies:
+        organ = re.split(r"\s*[—(]", bodies[0], maxsplit=1)[0]
+    sense = anomaly[0][0].replace("_", " ") if anomaly else None
+    if organ is None and sense:
+        organ = f"{sense} organ"
+    if organ:
+        secs.append(("ORGAN VARIATION", [
+            f["organ"].format(organ=organ, sense=sense or "distant things",
+                              role=f["role"], roles=f["role"] + "s"),
+            f["organ_fire"].format(organ=organ)]))
+    return secs
 
 
 def _intro_text(s: dict) -> str:
@@ -180,14 +221,21 @@ def _prompt_text(s: dict) -> str:
     if s["traits"]:
         segs.append("unexplained anatomy: " + "; ".join(
             t.rstrip(".") for t in s["traits"]))
+    if s.get("neural"):
+        n = s["neural"]
+        segs.append(f"in-depth: {n['range']}; {n['variety']}; {n['temper']}; "
+                    f"{n['activity']}; {n['molt']}; {n['social']}; "
+                    f"{n['mating']}")
     segs.append(f"behaving thus: {s['behavior']}")
     segs.append(STYLE_TAGS)
     return "  " + ", ".join(segs)
 
 
-def build_description(kv: dict, header: str = "", device: str = "auto",
-                      params_override: int | None = None) -> str:
-    s = _collect(kv, device, params_override)
+def build_description(kv: dict, header="", device: str = "auto",
+                      params_override: int | None = None,
+                      in_depth: bool = False, source=None) -> str:
+    s = _collect(kv, device, params_override, in_depth=in_depth,
+                 source=source, header=header)
     meta, qi, profile = s["meta"], s["qi"], s["profile"]
 
     lines: list[str] = []
@@ -224,6 +272,12 @@ def build_description(kv: dict, header: str = "", device: str = "auto",
         for body in s["traits"]:
             lines.append(f"  • {body}.")
 
+    for title, bullets in s.get("sections", []):
+        lines.append("")
+        lines.append(title + ":")
+        for text in bullets:
+            lines.append(f"  • {text[0].upper() + text[1:]}.")
+
     lines.append("")
     lines.append(s["behavior"])
 
@@ -234,6 +288,8 @@ def build_description(kv: dict, header: str = "", device: str = "auto",
     return "\n".join(lines) + "\n"
 
 
-def render_prompt(kv: dict, device: str = "auto") -> str:
+def render_prompt(kv: dict, device: str = "auto", in_depth: bool = False,
+                  source=None, header=None) -> str:
     """FR-17: the detailed image-generator prompt for a KV mapping."""
-    return _prompt_text(_collect(kv, device, None)).strip()
+    return _prompt_text(_collect(kv, device, None, in_depth=in_depth,
+                                 source=source, header=header)).strip()

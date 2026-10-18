@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import pools
 from .parser import ModelMeta
 
 VOCAB_DIET_BOUNDARIES = [16000, 48000, 100000, 200000, 400000]
@@ -51,16 +52,18 @@ HEALTH_WORDS = {10: "pristine", 9: "excellent", 8: "good", 7: "fair", 6: "weathe
                 5: "frail", 4: "emaciated", 3: "diseased", 2: "near-corpse",
                 1: "skeletal", 0: "dust"}
 
-# FR-5.3 condition modifiers (additional descriptions), applied in this fixed order.
+# FR-5.3 condition modifiers (additional descriptions), applied in this fixed
+# order. The prose lives in pools.QUANT_MODIFIER_POOLS (>= 20 phrasings each,
+# FR-14); entry 0 is the canonical phrasing.
 QUANT_MODIFIERS = [
-    (re.compile(r"XXS"), "bones like capillary tubes; it looks ready to snap"),
-    (re.compile(r"XS"), "fine-boned and compact, every part reduced to its minimum"),
-    (re.compile(r"_S$"), "sleek and close-coated, with nothing to spare"),
-    (re.compile(r"_M$"), "mottled and asymmetric — the two sides never quite match"),
-    (re.compile(r"_L$"), "thick-set and heavy-coated, carrying extra everything"),
-    (re.compile(r"K"), "patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar"),
-    (re.compile(r"_0$"), "blunt and undetailed; its features are all broad strokes"),
-    (re.compile(r"_1$"), "finely etched, every ridge and whisker crisply drawn"),
+    (re.compile(r"XXS"), "XXS"),
+    (re.compile(r"XS"), "XS"),
+    (re.compile(r"_S$"), "S"),
+    (re.compile(r"_M$"), "M"),
+    (re.compile(r"_L$"), "L"),
+    (re.compile(r"K"), "K"),
+    (re.compile(r"_0$"), "Q0"),
+    (re.compile(r"_1$"), "Q1"),
 ]
 
 
@@ -184,15 +187,19 @@ def extract_features(meta: ModelMeta) -> Features:
     )
 
 
-_SIZE_LABEL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*([bmk])", re.IGNORECASE)
+_SIZE_LABEL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*([bmkmt])", re.IGNORECASE)
+_SIZE_LABEL_BARE_RE = re.compile(r"^\d+$")
 
 
 def estimate_params(f: Features) -> int | None:
     if f.size_label:
-        mo = _SIZE_LABEL_RE.search(str(f.size_label))
+        s = str(f.size_label)
+        mo = _SIZE_LABEL_RE.search(s)
         if mo:
-            mult = {"k": 1e3, "m": 1e6, "b": 1e9}[mo.group(2).lower()]
+            mult = {"k": 1e3, "m": 1e6, "b": 1e9, "t": 1e12}[mo.group(2).lower()]
             return int(float(mo.group(1)) * mult)
+        if _SIZE_LABEL_BARE_RE.match(s.strip()):
+            return int(s.strip())
     if f.n_layers is None or f.n_embd is None or f.n_vocab is None:
         return None
     d = f.n_embd
@@ -312,8 +319,19 @@ def length_phrase(anchor: str) -> str:
     return "from nose to tail"
 
 
+def quant_modifiers(name: str, die: "Die | None" = None) -> list[str]:
+    """Matching sub-class modifiers (FR-5.3). With a die, one phrasing is
+    drawn from each matching pool; without, the canonical entry 0 is used."""
+    out = []
+    for rx, tag in QUANT_MODIFIERS:
+        if rx.search(name):
+            pool = pools.QUANT_MODIFIER_POOLS[tag]
+            out.append(die.choice(pool) if die is not None else pool[0])
+    return out
+
+
 def _quant_modifiers(name: str) -> list[str]:
-    return [prose for rx, prose in QUANT_MODIFIERS if rx.search(name)]
+    return quant_modifiers(name)
 
 
 def quant_info(f: Features) -> QuantInfo:
@@ -519,3 +537,57 @@ def _body_size_index(n_params: int | None) -> int:
         if n_params < bound:
             return i
     return 12
+
+
+# ---------------------------------------------------------------------------
+# FR-19: in-depth neural facets (coarse quant-robust buckets)
+# ---------------------------------------------------------------------------
+_SPREAD_BINS = (-1.95, -1.70)
+_HET_BINS = (0.15, 0.22)
+_KURT_BINS = (4.0, 6.5)
+_SPARS_BINS = (0.20, 0.24)
+_TREND_BINS = (-0.002, 0.002)
+
+def _bin3(value: float, bins: tuple[float, float]) -> int:
+    return 0 if value < bins[0] else (1 if value < bins[1] else 2)
+
+
+def neural_buckets(np_) -> dict[str, int]:
+    """Coarse 0/1/2 bins for each neural aggregate (FR-19.4)."""
+    return {
+        "spread": _bin3(np_.spread, _SPREAD_BINS),
+        "het": _bin3(np_.heterogeneity, _HET_BINS),
+        "kurt": _bin3(np_.outlier, _KURT_BINS),
+        "spars": _bin3(np_.sparsity, _SPARS_BINS),
+        "trend": _bin3(np_.trend, _TREND_BINS),
+    }
+
+
+def neural_facets(np_, die: "Die") -> dict[str, str]:
+    """Pick one phrasing per in-depth topic (FR-19.4). Each topic pool holds
+    21 entries (7 per bucket); the bucket selects the third, the die picks
+    within it. The die must be seeded on name+arch only — never on quant — so
+    the same model at any quant level picks identical phrasings (FR-19.5)."""
+    b = neural_buckets(np_)
+
+    def pick(name: str, bucket: int) -> str:
+        pool = getattr(pools, name)
+        return die.choice(pool[bucket * 7:bucket * 7 + 7])
+
+    return {
+        "range": pick("NEURAL_RANGE", b["spread"]),
+        "variety": pick("NEURAL_VARIETY", b["het"]),
+        "molt": pick("NEURAL_MOLT", b["trend"]),
+        "temper": pick("NEURAL_TEMPER", b["kurt"]),
+        "activity": pick("NEURAL_ACTIVITY", b["spars"]),
+        "indiv": pick("NEURAL_INDIV", b["het"]),
+        "migration": pick("NEURAL_MIGRATION", b["trend"]),
+        "mating": pick("NEURAL_MATING", b["spread"]),
+        "calls": pick("NEURAL_CALLS", b["kurt"]),
+        "social": pick("NEURAL_SOCIAL", b["het"]),
+        "home_range": pick("NEURAL_HOME_RANGE", b["spread"]),
+        "shelter": pick("NEURAL_SHELTER", b["spars"]),
+        "organ": pick("NEURAL_ORGAN", b["het"]),
+        "organ_fire": pick("NEURAL_ORGAN_FIRE", b["kurt"]),
+        "role": die.choice(pools.NEURAL_ORGAN_ROLES),
+    }

@@ -21,7 +21,33 @@ def test_FR_13_all_sections_present():
         assert section in text, section
 
 
-def test_FR_13_13_example_output_is_real(demo_kv):
+def test_FR_13_13_example_output_is_real():
+    from gguf_zoo.demo import demo_bytes, resolve_demo_quant
+    from gguf_zoo.parser import parse_gguf_bytes
+    data = demo_bytes("qwen2", name="Grottokeeper Demo", params="30B",
+                      quant=resolve_demo_quant("q6_k"))
+    kv, _ = parse_gguf_bytes(data)
     text = README.read_text(encoding="utf-8")
-    example = build_description(demo_kv, device="cpu")
+    example = build_description(kv, device="cpu")
+    assert example.strip() in text
+
+
+def test_FR_13_13_demo_examples_use_new_flags_and_differ_only_by_in_depth():
+    text = README.read_text(encoding="utf-8")
+    cmd = ('uv run gguf-zoo infer --demo --demo-name "Grottokeeper Demo" '
+           '--demo-params 30b --demo-quant q6_k')
+    assert f"Output of `{cmd}`:" in text
+    assert f"Output of `{cmd} --in-depth`:" in text
+    assert "infer --demo mixtral" not in text
+
+
+def test_FR_13_13_in_depth_example_output_is_real():
+    from gguf_zoo.demo import demo_bytes, resolve_demo_quant
+    from gguf_zoo.parser import parse_gguf_bytes
+    data = demo_bytes("qwen2", name="Grottokeeper Demo", params="30B",
+                      quant=resolve_demo_quant("q6_k"))
+    kv, header = parse_gguf_bytes(data)
+    text = README.read_text(encoding="utf-8")
+    example = build_description(kv, header=header, device="cpu",
+                                in_depth=True, source=data)
     assert example.strip() in text

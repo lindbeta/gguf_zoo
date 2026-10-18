@@ -31,7 +31,8 @@ def test_FR_1_3_all_types_roundtrip():
 
 def test_FR_1_4_empty_file():
     kv, header = parse_gguf_bytes(build_gguf([]))
-    assert kv == {} and header == {"version": 3, "n_tensors": 0, "n_kv": 0}
+    assert kv == {} and header == {"version": 3, "n_tensors": 0, "n_kv": 0,
+                                   "kv_end": 24}
 
 
 def test_FR_1_5_truncated():
@@ -51,7 +52,8 @@ def test_FR_1_6_bad_utf8_replaced():
 
 def test_FR_1_7_header_info_fields():
     _, header = parse_gguf_bytes(build_gguf([("k", 4, 1)], n_tensors=7))
-    assert set(header) == {"version", "n_tensors", "n_kv"} and header["n_tensors"] == 7
+    assert set(header) == {"version", "n_tensors", "n_kv", "kv_end"}
+    assert header["n_tensors"] == 7
 
 
 def test_FR_1_8_build_meta_from_flat_dict():

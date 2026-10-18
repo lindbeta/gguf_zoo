@@ -39,8 +39,12 @@ def test_FR_5_4_unknown_quant_string_and_missing():
 
 
 def test_FR_5_5_condition_section_format(demo_kv):
+    from gguf_zoo import pools
     out = build_description(demo_kv, device="cpu")
     assert "CONDITION — WEATHERED" in out
-    assert "  • mottled and asymmetric" in out
+    bullets = [ln[4:] for ln in out.splitlines() if ln.startswith("  • ")]
+    # Q4_K_M matches the _M$ and K pools; each bullet is one of their entries
+    assert any(b in pools.QUANT_MODIFIER_POOLS["M"] for b in bullets)
+    assert any(b in pools.QUANT_MODIFIER_POOLS["K"] for b in bullets)
     assert "[sub-class]" not in out  # condition has only additional descriptions
     assert "[Q4_K_M" not in out  # FR-3.4: quant name never leaks into body

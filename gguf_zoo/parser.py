@@ -39,7 +39,7 @@ class _Reader:
     def read(self, n: int) -> bytes:
         if n < 0 or self.pos + n > len(self.data):
             raise GGUFError("Truncated GGUF file")
-        b = self.data[self.pos:self.pos + n]
+        b = bytes(self.data[self.pos:self.pos + n])
         self.pos += n
         return b
 
@@ -112,7 +112,8 @@ def parse_gguf_bytes(data: bytes) -> tuple[dict[str, Any], dict[str, int]]:
         key = r.read_str()
         typecode = r.unpack("<I")
         kv[key] = _read_value(r, typecode)
-    header = {"version": version, "n_tensors": n_tensors, "n_kv": n_kv}
+    header = {"version": version, "n_tensors": n_tensors, "n_kv": n_kv,
+              "kv_end": r.pos}
     return kv, header
 
 

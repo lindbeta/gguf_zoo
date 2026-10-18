@@ -45,8 +45,8 @@ offset  size  field
 8       8     uint64       n_tensors
 16      8     uint64       n_kv
 24      ...   n_kv key-value pairs
-        ...   tensor info records   <-- NEVER READ, can be gigabytes past this
-        ...   tensor data           <-- NEVER READ
+        ...   tensor info records   <-- read ONLY in --in-depth mode (FR-19)
+        ...   tensor data           <-- sampled ONLY in --in-depth mode (FR-19)
 ```
 
 All integers are **little-endian**. A KV pair is:
@@ -103,7 +103,9 @@ must label it as such (`~7.0B`).
 
 ### 0.4 Non-goals
 
-- Do **not** read tensor info records or tensor data.
+- Do **not** read tensor info records or tensor data, **except** in
+  `--in-depth` mode (FR-19), which samples a bounded, deterministic subset.
+  The default path never touches them.
 - Do **not** call the network or any external LLM at inference time; all prose is
   from built-in pools. Both classifiers are trained **locally** from built-in
   synthetic datasets.
@@ -172,6 +174,7 @@ gguf_zoo/
   classifier.py        # small char/word n-gram network + rule fallback + artifacts
   attributes.py        # second trained model: unmapped field key -> attribute (FR-16)
   taxonomy.py          # Latin binomial from name + traits
+  weights.py           # FR-19: in-depth tensor info + sampled weight statistics
   pools.py             # all prose pools (module constants)
   render.py            # deterministic field-guide renderer
   cli.py               # argparse entry point
@@ -189,6 +192,7 @@ tests/
   test_classifier.py
   test_anomalies.py
   test_attributes.py   # FR-16: unmapped-field -> attribute classifier
+  test_weights.py      # FR-19: in-depth weight sampling, dequant, quant-robustness
   test_taxonomy.py
   test_determinism.py
   test_render.py
@@ -211,7 +215,7 @@ SPEC.md                # this file
 
 ```python
 read_metadata(path: str | Path) -> tuple[dict[str, Any], dict[str, Any]]
-    # (kv_dict, {"version": int, "n_tensors": int, "n_kv": int})
+    # (kv_dict, {"version": int, "n_tensors": int, "n_kv": int, "kv_end": int})
 build_meta(kv: dict) -> ModelMeta                    # normalized ModelMeta dataclass
 extract_features(md: ModelMeta) -> "Features"         # raw + recognized fields
 estimate_params(f: Features) -> int | None
@@ -231,7 +235,11 @@ anomaly_organs(unknown: dict, extra_senses: list[tuple[str, str]] = ...) -> list
     # (anatomy prose, internal source id — never printed); also covers senses NOT
     # handled by the sense model (FR-3.7)
 build_profile(md: ModelMeta) -> Profile
-build_description(kv: dict, header: str = "") -> str
+build_description(kv: dict, header: str = "", ..., in_depth: bool = False,
+                  source: str | Path | bytes | None = None) -> str
+    # in_depth=True adds the FR-19 NEUROLOGY section; `source` is the .gguf
+    # path or bytes the kv came from (needed to reach the tensor section)
+neural_profile(source, kv, header) -> "NeuralProfile | None"   # FR-19
 render_prompt(kv: dict) -> str   # detailed image-gen prompt (FR-17)
 ```
 
@@ -456,7 +464,8 @@ nothing raises on a sparse file.
 | — | ≥ 500e12 | Beyond Kaiju | a kaiju that dwarfs mountains |
 
 **4.2** Parameter count resolution order: (a) if `general.size_label` is present
-and parses as `<number>[K|M|B]` (e.g. `12B`, `300m`), that declared total wins —
+and parses as `<number>[K|M|B|T]` (case-insensitive, e.g. `12B`, `300m`, `1.5t`)
+or a bare full number (`7155000000`), that declared total wins —
 it is authoritative for MoE models, whose *active* param count the formula
 under-reports; (b) otherwise the formula from `n_layers`, `n_embd`, `n_vocab`,
 where `n_vocab` may also come from the element count of
@@ -515,18 +524,21 @@ Band → health word: `10 pristine, 9 excellent, 8 good, 7 fair, 6 weathered,
 B (same family), `band(A) >= band(B)`. Tests assert this over the whole table.
 
 **5.3** Sub-class modifiers — applied to the description, in this fixed order,
-for **every** pattern matching the quant name (multiple may apply):
+for **every** pattern matching the quant name (multiple may apply). The prose
+lives in `pools.QUANT_MODIFIER_POOLS` (FR-14: **≥ 20 phrasings per pool**);
+entry 0 is the canonical phrasing, and the renderer draws one variant per
+matching pattern with the seeded die:
 
-| regex | prose |
-|---|---|
-| `XXS` | bones like capillary tubes; it looks ready to snap |
-| `XS` | fine-boned and compact, every part reduced to its minimum |
-| `_S$` | sleek and close-coated, with nothing to spare |
-| `_M$` | mottled and asymmetric — one side always seems better fed than the other |
-| `_L$` | thick-set and heavy-coated, carrying extra everything |
-| `K` | patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar |
-| `_0$` | blunt and undetailed; its features are all broad strokes |
-| `_1$` | finely etched, every ridge and whisker crisply drawn |
+| regex | pool key | canonical phrasing (entry 0) |
+|---|---|---|
+| `XXS` | `XXS` | bones like capillary tubes; it looks ready to snap |
+| `XS` | `XS` | fine-boned and compact, every part reduced to its minimum |
+| `_S$` | `S` | sleek and close-coated, with nothing to spare |
+| `_M$` | `M` | mottled and asymmetric — the two sides never quite match |
+| `_L$` | `L` | thick-set and heavy-coated, carrying extra everything |
+| `K` | `K` | patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar |
+| `_0$` | `Q0` | blunt and undetailed; its features are all broad strokes |
+| `_1$` | `Q1` | finely etched, every ridge and whisker crisply drawn |
 
 Rendered as additional `• <prose>` description lines under the condition
 section — a condition has no subclasses, only additional descriptions, and the
@@ -840,8 +852,10 @@ is the module-equivalent form:
 ```
 uv run gguf-zoo infer <file.gguf>
 uv run gguf-zoo infer --meta metadata.json
-uv run gguf-zoo infer --demo [--save out.gguf]
+uv run gguf-zoo infer --demo [NAME] [--save out.gguf]
+uv run gguf-zoo infer --demo [--demo-name NAME] [--demo-params N] [--demo-quant Q]
 uv run gguf-zoo infer <file.gguf> --params 7155000000   # override estimate
+uv run gguf-zoo infer <file.gguf> --in-depth            # read sampled weights (FR-19)
 uv run gguf-zoo train-senses [--out artifacts/sense_clf.pt] [--seed 0] [--device auto]
 uv run gguf-zoo eval-senses [--device auto]
 uv run gguf-zoo train-attributes [--out artifacts/field_attr_clf.pt] [--seed 0] [--device auto]
@@ -855,11 +869,26 @@ uv run gguf-zoo detect-senses <file.gguf>     # consensus per declared input
 1. **10.1** `infer` requires exactly one of `<file>` / `--meta` / `--demo`; else
    exit 2.
 2. **10.2** `--meta` accepts a flat JSON object of `key -> value`.
-3. **10.3** `--demo` synthesizes a valid GGUF **in memory** and parses it through
-   the real reader (not a shortcut).
+3. **10.3** `--demo [NAME]` synthesizes a valid GGUF **in memory** and parses it
+   through the real reader (not a shortcut). Built-in demos: `qwen2` (default,
+   a multimodal Q4_K_M model with unknown fields) and `mixtral` (a pristine
+   F32 MoE model); bare `--demo` equals `--demo qwen2`.
 4. **10.4** `--save PATH` writes the demo bytes to `PATH`.
 5. **10.5** Missing file → stderr message + exit code 1, never a traceback.
 6. **10.6** Description goes to stdout; diagnostics to stderr.
+7. **10.7** `--in-depth` (FR-19) is accepted by `infer`; with `--meta` (no
+   tensor data available) it is an error → exit 2.
+8. **10.8** Demo override flags (only meaningful with `--demo`):
+   `--demo-name NAME` replaces the demo's `general.name`;
+   `--demo-params N` sets the parameter count — a full number (`7155000000`)
+   or a **case-insensitive** `k`/`m`/`b`/`t` suffix (`300m`, `7B`, `1.5t`),
+   applied via `general.size_label` (FR-4.2);
+   `--demo-quant Q` sets `general.file_type` from a **case-insensitive**
+   quant name; the accepted values are the canonical `QUANT_TABLE` names
+   (plus `F32`) and are listed in `--help`. An invalid `--demo-params` or
+   `--demo-quant` value → stderr message + exit 2.
+9. **10.9** `infer` **ignores** `--demo-name` / `--demo-params` /
+   `--demo-quant` entirely when `--demo` is not present.
 
 ### FR-11 — Per-requirement tests (mandatory for completion)
 
@@ -867,7 +896,7 @@ uv run gguf-zoo detect-senses <file.gguf>     # consensus per declared input
 passing test that exercises it.** This is a hard, structural requirement of the
 spec, not a best-effort guideline.
 
-1. **11.1** Every FR and every sub-requirement ID (FR-1.1 … FR-16.5) must be
+1. **11.1** Every FR and every sub-requirement ID (FR-1.1 … FR-19.6) must be
    covered by at least one named test. A requirement without a test is **not
    done**, even if the code appears to work.
 2. **11.2** Tests are named after the requirement they verify, e.g.
@@ -903,14 +932,15 @@ spec, not a best-effort guideline.
 | FR-7.1–7.6 | `test_taxonomy.py` |
 | FR-8.1–8.5 | `test_determinism.py` |
 | FR-9.1–9.2 | `test_render.py` |
-| FR-10.1–10.6 | `test_cli.py` |
+| FR-10.1–10.9 | `test_cli.py` |
 | FR-11.1–11.6 | `test_traceability.py` (asserts the map is complete & green) |
 | FR-12.1–12.5 | `test_device.py` |
 | FR-13.1–13.13 | `test_readme.py` |
-| FR-14.1–14.4 | `test_pools.py` |
+| FR-14.1–14.5 | `test_pools.py` |
 | FR-16.1–16.5 | `test_attributes.py` |
 | FR-17.1–17.3 | `test_prompt.py` |
 | FR-18.1–18.4 | `test_consistency.py` |
+| FR-19.1–19.6 | `test_weights.py` |
 
 ### FR-12 — GPU acceleration (training and inference)
 
@@ -999,8 +1029,10 @@ output varied and rich rather than repetitive:
    length, diet breadth, headgear, ear size, behavior sentences, metadata
    anomaly organs, fictional-anatomy names, fictional-anatomy organ-behaviour
    descriptions, fictional-anatomy structure+movement descriptions, person
-   names, the per-sense organ nouns and phrase pools, and the per-habitat gloss
-   phrases (`HABITAT_PHRASES`). Every entry must be relevant to the pool it
+    names, the per-sense organ nouns and phrase pools, the per-habitat gloss
+    phrases (`HABITAT_PHRASES`), the quant sub-class modifier pools
+    (`QUANT_MODIFIER_POOLS`), and the in-depth neural section phrase pools
+    (`NEURAL_*`). Every entry must be relevant to the pool it
    sits in, and each pool should span **both realistic and fictional** imagery
    (real anatomy and behaviour alongside invented,
    impossible, or marvellous ones).
@@ -1018,6 +1050,17 @@ output varied and rich rather than repetitive:
    entries are unique and non-empty (FR-14.2/14.3), and that no *descriptor*
    entry ends in sentence punctuation. The behavior-sentence pool is exempt from
    the punctuation rule (its entries are complete sentences).
+5. **14.5** `pools.py` holds **all selection values**: any set of
+   interchangeable phrases or options from which one or more entries is chosen
+   for output must be defined in `pools.py` and obey FR-14.1–14.4 — no other
+   module may define prose pools (quant sub-class modifiers live in
+   `QUANT_MODIFIER_POOLS`, in-depth bucket phrasings in the `NEURAL_*` pools).
+   Deterministic lookup tables that map a key to a single canonical value
+   (size ladder, health words, habitat names, measure phrases, Latin epithets,
+   bucket thresholds) are **not** selection pools and stay with the logic that
+   uses them. `test_pools.py` **auto-discovers** every public list-of-strings
+   constant (and dict/tuple-of-lists) in `pools.py` and runs the FR-14 checks
+   on it, so a newly added pool cannot skip the rules.
 
 ### FR-15 — Habitat, locomotion & plant-like features
 
@@ -1130,6 +1173,44 @@ space contains ≥ 8 fictional attributes disjoint from the real ones;
    a valid clade, clade-restricted entries are absent from the other clades'
    filtered pools, and filtered pools are never empty.
 
+### FR-19 — In-depth neural reading (`--in-depth`)
+
+1. **19.1** With `--in-depth`, `infer` parses the **tensor info records**
+   (name, dims, GGML dtype, offset) and samples actual weight values from the
+   tensor data section of the same file (or the demo's synthetic tensors).
+   The KV-only default path is unchanged.
+2. **19.2** Sampling is bounded and deterministic: for each supported tensor,
+   up to 64 quantization blocks chosen at **evenly spaced** positions (no RNG).
+   Supported dtypes: F32, F16, BF16, Q4_0, Q4_1, Q8_0, Q4_K, Q5_K, Q6_K;
+   tensors of any other dtype (IQ*, unknown) are skipped.
+3. **19.3** Per-tensor statistics from the dequantized samples: RMS, mean,
+   kurtosis, and sparsity (fraction of |values| < ¼·RMS). Aggregated across
+   weight tensors (norm tensors excluded): mean log₁₀ RMS (**spread**),
+   std of log₁₀ RMS (**heterogeneity**), mean kurtosis (**outlier index**),
+   mean sparsity, and the least-squares slope of log₁₀ RMS vs. block index
+   (**layer trend**).
+4. **19.4** Each aggregate is bucketed into coarse fixed bins (low/mid/high)
+   and rendered as **separate in-depth sections** in the style of a species
+   biology manual: `APPEARANCE VARIATION` (color range, pattern template
+   variety, seasonal molt), `TEMPERAMENT` (boldness, activity cycle,
+   individual personality), `SPECIES BEHAVIOR` (migration, courtship, calls,
+   sociality), `NATURAL HABITAT` (home range, shelter), and `ORGAN VARIATION`
+   — how the creature's anomalous/fictional organs and senses vary between
+   individuals and shape roles (e.g. larger telepathy organs serve as the
+   group's scouts). No raw "nervous system" statistics are printed. Every
+   bucketed selection draws from a `NEURAL_*` pool of **21 entries** (7
+   phrasings per bucket, FR-14) with a die seeded on model name + architecture
+   only — never on quant — so the same model at any quant level picks
+   identical phrasings. The IMAGE PROMPT gains matching range/temperament/
+   behavior segments.
+5. **19.5** **Quant robustness:** RMS, kurtosis and sparsity are approximately
+   invariant to quantization noise, and the coarse bucketing absorbs the
+   residual differences, so different quant levels of the same model yield
+   **very similar** descriptions. `test_weights.py` asserts identical facet
+   buckets for identical synthetic weights stored as F32, Q8_0 and Q4_0.
+6. **19.6** All in-depth output is deterministic: same file → byte-identical
+   description (evenly spaced sampling, fixed thresholds, no RNG).
+
 ---
 
 ## 3. Test fixtures: synthetic GGUF builder
@@ -1236,10 +1317,10 @@ the anomalous-anatomy path (FR-3.7).
 4. Managed entirely by `uv` in a project-local `.venv` (`uv sync` creates it,
    `uv sync --frozen` reproduces it from the committed `uv.lock`; interpreter
    pinned via `.python-version`; `.venv/` git-ignored). No system/global
-   interpreter use, no manual `pip install`. No network access at inference, no
-   reading of tensor data, and no third-party runtime deps beyond `numpy` and
-   `torch`.
-5. **FR-11 holds:** every FR id (FR-1.1 … FR-16.5) has at least one passing,
+    interpreter use, no manual `pip install`. No network access at inference, no
+    reading of tensor data except under `--in-depth` (FR-19), and no
+    third-party runtime deps beyond `numpy` and `torch`.
+5. **FR-11 holds:** every FR id (FR-1.1 … FR-19.6) has at least one passing,
    behavior-asserting test, `tests/TRACEABILITY.md` maps each id to its test(s),
    and `test_traceability.py` fails if any id is unmapped, skipped, or xfailed.
    A requirement without a green test is **not complete**.
@@ -1250,13 +1331,18 @@ the anomalous-anatomy path (FR-3.7).
 7. **FR-13 holds:** `README.md` exists with all required sections (13.1–13.12),
    and `test_readme.py` confirms its example output is byte-identical to the
    program's real output for the documented input.
-8. **FR-14 holds:** `test_pools.py` asserts every prose pool has ≥ 20 unique,
-   non-empty entries with no trailing sentence punctuation (FR-14.1–14.4).
+ 8. **FR-14 holds:** `test_pools.py` asserts every prose pool has ≥ 20 unique,
+    non-empty entries with no trailing sentence punctuation (FR-14.1–14.4), and
+    auto-discovers every selection pool in `pools.py` (FR-14.5).
  9. **FR-15 holds:** `test_habitat.py` asserts equal-thirds habitat assignment,
     equal terrestrial/aerial/aquatic anchor counts per tier, ≥ 20-entry habitat
     and plant feature pools, and that a rendered entry names a habitat.
 10. **FR-16 holds:** `test_attributes.py` asserts the attribute classifier's
     alias-grouped accuracy ≥ 0.95, ≥ 8 fictional attributes disjoint from the
     real ones, deterministic inference, and — end to end — that the rendered
-    guide body contains no raw field key, value, quant name, or input name from
-    the input metadata (FR-3.4), and that no `[AUDIT]` footer is printed.
+     guide body contains no raw field key, value, quant name, or input name from
+     the input metadata (FR-3.4), and that no `[AUDIT]` footer is printed.
+11. **FR-19 holds:** `test_weights.py` asserts tensor-info parsing, dequant
+    round-trips, deterministic sampling, and that F32/Q8_0/Q4_0 copies of the
+    same weights produce identical facet buckets; `test_cli.py` covers
+    `--in-depth` (including the `--meta` + `--in-depth` exit-2 case).

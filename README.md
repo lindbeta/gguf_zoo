@@ -48,8 +48,10 @@ uv run gguf-zoo infer --demo
 |---|---|
 | `uv run gguf-zoo infer <file.gguf>` | generate a field guide from a GGUF file |
 | `uv run gguf-zoo infer --meta metadata.json` | generate from a flat JSON of `key -> value` |
-| `uv run gguf-zoo infer --demo [--save out.gguf]` | use a built-in synthetic model |
+| `uv run gguf-zoo infer --demo [NAME] [--save out.gguf]` | built-in demo model: `qwen2` (default) or `mixtral` |
+| `uv run gguf-zoo infer --demo --demo-name NAME --demo-params 7b --demo-quant q8_0` | override the demo's name / parameter count / quant (all optional, case-insensitive) |
 | `uv run gguf-zoo infer <file> --params N` | override the parameter estimate |
+| `uv run gguf-zoo infer <file> --in-depth` | sample real weights for the in-depth biology sections |
 | `uv run gguf-zoo train-senses [--seed N] [--device D]` | (re)train the sense classifier |
 | `uv run gguf-zoo eval-senses` | report alias-grouped accuracy + confusion matrix |
 | `uv run gguf-zoo train-attributes [--seed N] [--device D]` | (re)train the field→attribute classifier |
@@ -58,6 +60,18 @@ uv run gguf-zoo infer --demo
 | `uv run gguf-zoo detect-senses <file.gguf>` | classify a file's declared inputs |
 
 Flags: `--device auto|cuda|mps|cpu` (default `auto`), `--seed`, `--draws`.
+
+With `--in-depth`, gguf-zoo also reads the file's tensor section: it samples up
+to 64 evenly spaced weight blocks per layer and derives quant-robust statistics
+(weight spread, heterogeneity, outlier kurtosis, sparsity, layer trend) that
+drive separate biology-manual sections — **APPEARANCE VARIATION**,
+**TEMPERAMENT**, **SPECIES BEHAVIOR** (migration, courtship, calls, sociality),
+**NATURAL HABITAT**, and **ORGAN VARIATION** (how the species' fictional organs
+vary between individuals and shape roles, e.g. larger telepathy organs serving
+as the group's scouts). Each line is drawn from a pool of 21 quant-robust
+phrasings (7 per statistical bucket); the picks are seeded on the model's name
+and architecture only, so different quant levels of the same model yield the
+same lines, and the output is fully deterministic (no RNG).
 
 ## Training the classifiers
 
@@ -79,32 +93,32 @@ fields as invented anatomy instead of colliding with real traits.
 
 ## Example input → output
 
-Input (built-in demo metadata: a qwen2-like multimodal model, Q4_K_M):
+Input (built-in qwen2-like demo metadata with the `--demo-*` overrides applied):
 
 ```json
-{"general.architecture": "qwen2", "general.name": "MysteryBeast Qwen2 Demo",
- "general.file_type": 15, "tokenizer.ggml.pre": "qwen2-vision"}
+{"general.architecture": "qwen2", "general.name": "Grottokeeper Demo",
+ "general.file_type": 18, "general.size_label": "30B",
+ "tokenizer.ggml.pre": "qwen2-vision"}
 ```
 
-Output of `uv run gguf-zoo infer --demo`:
+Output of `uv run gguf-zoo infer --demo --demo-name "Grottokeeper Demo" --demo-params 30b --demo-quant q6_k`:
 
 ```
 ========================================================================
-FIELD GUIDE ENTRY — Mysteryapis pilosa viridis Zookeeperia (the Worn)
-Source model : MysteryBeast Qwen2 Demo (qwen2)
-Parameters   : ~1.3B  ->  size class: Small (housefly to honeybee)
-Quantization : Q4_K_M (Q4_K_M K-quant)  ->  condition: weathered
+FIELD GUIDE ENTRY — Grottokiola pilosa viridis Zookeeperia (the Sound)
+Source model : Grottokeeper Demo (qwen2)
+Parameters   : ~30.0B  ->  size class: Medium (rat to hawk)
+Quantization : Q6_K (Q6_K K-quant)  ->  condition: good
 ========================================================================
 
-A juvenile ladybird — a hairy, green insect of the open grassland. It measures about 0.7 cm from head to tail and weighs about 8 mg. It wears a armour of keratinous spines, colored midnight indigo under a cave-damp grey; colors dulled to a whisper, a clean two-tone split, a plain back with a marked belly. On the head: a pair of swept-back horns with a bony ridge where ears sit; eyes that glow in the dark. Humped at the withers, angular and knuckled, it carries a gut packed with mineral grit and forages as a filter-feeder. It is terrestrial, bearing burrowing foreclaws, a low crawling gait.
+A half-grown crow — a hairy, green small creature of the cloud forest ceiling. It measures about 25.2 cm from beak to tail and weighs about 179 g. It wears a pelt of interlocking feathers, colored pale mistral blue under a monsoon grey-green; colors that read as grey by moonlight, tipped darker at every limb, an asymmetrical splash of colour. On the head: a forward-curving hook with feathered ear-tufts; a single lidless staring eye. Short and thickset, round and barrel-girthed, it carries a short swift digestion tract and forages as a parasite of larger beasts. It is aerial, bearing a launch from the highest perch, feathers layered for lift.
 
 SENSES:
-  • Sight          blood-hot tall stalked eyes that never fully close
-  • Touch          frosted a tail that reads surfaces that split to see around corners
-  • Vibration      moss-furred a fin that reads the bank that click in the dark
+  • Sight          velvet a halo of lenslets that weep a faint light
+  • Touch          molten a lattice of pressure pits that ring in the rain
+  • Vibration      pulsing a knee that hears the herd that drain colour from their holder
 
-CONDITION — WEATHERED: the specimen is rough-pelted in root and frond.
-  • mottled and asymmetric — the two sides never quite match
+CONDITION — GOOD: the specimen is no-waste of wing and pinion.
   • patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar
 
 UNIQUE TRAITS:
@@ -113,7 +127,36 @@ UNIQUE TRAITS:
 It follows the polarized light even underground.
 
 IMAGE PROMPT:
-  Wildlife field-guide illustration of a juvenile ladybird, a hairy, green insect of the open grassland, measuring about 0.7 cm from head to tail and weighing about 8 mg, wearing a armour of keratinous spines, colored midnight indigo under a cave-damp grey, colors dulled to a whisper, a clean two-tone split, a plain back with a marked belly, on the head: a pair of swept-back horns with a bony ridge where ears sit; eyes that glow in the dark, humped at the withers, angular and knuckled, carrying a gut packed with mineral grit, foraging as a filter-feeder, terrestrial animal with burrowing foreclaws, a low crawling gait, condition: weathered, the specimen is rough-pelted in root and frond; mottled and asymmetric — the two sides never quite match; patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar, senses shown by sight organs — blood-hot tall stalked eyes that never fully close; touch organs — frosted a tail that reads surfaces that split to see around corners; vibration organs — moss-furred a fin that reads the bank that click in the dark, unexplained anatomy: Nuchal Sail (structure) — a jointed spur that rotates freely in its socket, behaving thus: It follows the polarized light even underground., natural history field-guide plate, detailed wildlife illustration, watercolor and ink, soft diffused daylight, plain off-white background, full body in profile, scientifically meticulous
+  Wildlife field-guide illustration of a half-grown crow, a hairy, green small creature of the cloud forest ceiling, measuring about 25.2 cm from beak to tail and weighing about 179 g, wearing a pelt of interlocking feathers, colored pale mistral blue under a monsoon grey-green, colors that read as grey by moonlight, tipped darker at every limb, an asymmetrical splash of colour, on the head: a forward-curving hook with feathered ear-tufts; a single lidless staring eye, short and thickset, round and barrel-girthed, carrying a short swift digestion tract, foraging as a parasite of larger beasts, aerial animal with a launch from the highest perch, feathers layered for lift, condition: good, the specimen is no-waste of wing and pinion; patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar, senses shown by sight organs — velvet a halo of lenslets that weep a faint light; touch organs — molten a lattice of pressure pits that ring in the rain; vibration organs — pulsing a knee that hears the herd that drain colour from their holder, unexplained anatomy: Nuchal Sail (structure) — a jointed spur that rotates freely in its socket, behaving thus: It follows the polarized light even underground., natural history field-guide plate, detailed wildlife illustration, watercolor and ink, soft diffused daylight, plain off-white background, full body in profile, scientifically meticulous
+```
+
+Output of `uv run gguf-zoo infer --demo --demo-name "Grottokeeper Demo" --demo-params 30b --demo-quant q6_k --in-depth`:
+
+```
+========================================================================
+FIELD GUIDE ENTRY — Grottokiola pilosa viridis Zookeeperia (the Sound)
+Source model : Grottokeeper Demo (qwen2)
+Parameters   : ~30.0B  ->  size class: Medium (rat to hawk)
+Quantization : Q6_K (Q6_K K-quant)  ->  condition: good
+========================================================================
+
+A half-grown crow — a hairy, green small creature of the cloud forest ceiling. It measures about 25.2 cm from beak to tail and weighs about 179 g. It wears a pelt of interlocking feathers, colored pale mistral blue under a monsoon grey-green; colors that read as grey by moonlight, tipped darker at every limb, an asymmetrical splash of colour. On the head: a forward-curving hook with feathered ear-tufts; a single lidless staring eye. Short and thickset, round and barrel-girthed, it carries a short swift digestion tract and forages as a parasite of larger beasts. It is aerial, bearing a launch from the highest perch, feathers layered for lift.
+
+SENSES:
+  • Sight          velvet a halo of lenslets that weep a faint light
+  • Touch          molten a lattice of pressure pits that ring in the rain
+  • Vibration      pulsing a knee that hears the herd that drain colour from their holder
+
+CONDITION — GOOD: the specimen is no-waste of wing and pinion.
+  • patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar
+
+UNIQUE TRAITS:
+  • Nuchal Sail (structure) — a jointed spur that rotates freely in its socket.
+
+It follows the polarized light even underground.
+
+IMAGE PROMPT:
+  Wildlife field-guide illustration of a half-grown crow, a hairy, green small creature of the cloud forest ceiling, measuring about 25.2 cm from beak to tail and weighing about 179 g, wearing a pelt of interlocking feathers, colored pale mistral blue under a monsoon grey-green, colors that read as grey by moonlight, tipped darker at every limb, an asymmetrical splash of colour, on the head: a forward-curving hook with feathered ear-tufts; a single lidless staring eye, short and thickset, round and barrel-girthed, carrying a short swift digestion tract, foraging as a parasite of larger beasts, aerial animal with a launch from the highest perch, feathers layered for lift, condition: good, the specimen is no-waste of wing and pinion; patchily mangled in blocky clumps, whole swaths of tissue replaced by coarse scar, senses shown by sight organs — velvet a halo of lenslets that weep a faint light; touch organs — molten a lattice of pressure pits that ring in the rain; vibration organs — pulsing a knee that hears the herd that drain colour from their holder, unexplained anatomy: Nuchal Sail (structure) — a jointed spur that rotates freely in its socket, behaving thus: It follows the polarized light even underground., natural history field-guide plate, detailed wildlife illustration, watercolor and ink, soft diffused daylight, plain off-white background, full body in profile, scientifically meticulous
 ```
 
 ## How it works
@@ -122,8 +165,9 @@ Metadata is mapped to traits (size ladder, quant health, gut/build/eyes/etc.),
 the trained sense classifier assigns visible senses to declared inputs, the
 trained attribute classifier gives every unmapped field a best-match
 attribute, and a seeded `Die` selects prose from fixed pools. Only the header
-block quotes the file; the body is pure fiction. See `SPEC.md` for the full
-specification.
+block quotes the file; the body is pure fiction. With `--in-depth` the tensor
+section is additionally sampled for quant-robust weight statistics (FR-19).
+See `SPEC.md` for the full specification.
 
 ## Testing
 

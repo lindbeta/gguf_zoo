@@ -20,6 +20,9 @@ FR_MAP = {
     "FR-14": "test_pools.py",
     "FR-15": "test_habitat.py",
     "FR-16": "test_attributes.py",
+    "FR-17": "test_prompt.py",
+    "FR-18": "test_consistency.py",
+    "FR-19": "test_weights.py",
 }
 
 
