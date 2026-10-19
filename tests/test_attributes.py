@@ -1,7 +1,7 @@
 from gguf_zoo.attributes import (ATTR_LABELS, FICTIONAL_ATTRIBUTES,
                                  REAL_ATTRIBUTES, classify_attribute,
                                  eval_attribute_classifier)
-from gguf_zoo.render import RULE, build_description
+from gguf_zoo.render import body_of, build_description
 
 BASE = {"general.architecture": "llama", "general.name": "AttrTest",
         "general.file_type": 15}
@@ -26,7 +26,7 @@ def test_FR_16_3_fictional_attribute_renders_named_anatomy():
     out = build_description(kv, device="cpu")
     assert "UNIQUE TRAITS" in out
     assert "Spiracle Array (structure)" in out
-    assert "spiracle_count" not in out.split(RULE, 2)[2]
+    assert "spiracle_count" not in body_of(out)
 
 
 def test_FR_16_3_real_attribute_adds_no_line():
@@ -41,7 +41,7 @@ def test_FR_16_3_abstain_renders_named_anatomy_without_citation():
     kv = dict(BASE, **{"zzzq": 1})
     out = build_description(kv, device="cpu")
     assert "UNIQUE TRAITS" in out
-    assert "zzzq" not in out.split(RULE, 2)[2]
+    assert "zzzq" not in body_of(out)
 
 
 def test_FR_16_4_deterministic_inference():

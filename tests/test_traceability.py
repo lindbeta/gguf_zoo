@@ -23,6 +23,7 @@ FR_MAP = {
     "FR-17": "test_prompt.py",
     "FR-18": "test_consistency.py",
     "FR-19": "test_weights.py",
+    "FR-20": "test_imagegen.py",
 }
 
 

@@ -1,6 +1,7 @@
 """Deterministic field-guide renderer (FR-9) + image-generator prompt (FR-17)."""
 from __future__ import annotations
 
+import json
 import re
 
 from . import pools
@@ -15,7 +16,7 @@ from .senses import VISIBLE_SENSES
 from .taxonomy import binomial, gloss
 
 WIDTH = 72
-RULE = "=" * WIDTH
+RULE = "=" * WIDTH  # legacy plain-text rule, kept for reference only
 
 STYLE_TAGS = ("natural history field-guide plate, detailed wildlife "
               "illustration, watercolor and ink, soft diffused daylight, "
@@ -238,54 +239,55 @@ def build_description(kv: dict, header="", device: str = "auto",
                  source=source, header=header)
     meta, qi, profile = s["meta"], s["qi"], s["profile"]
 
-    lines: list[str] = []
-    lines.append(RULE)
-    lines.append(f"FIELD GUIDE ENTRY — {binomial(profile, meta)} "
-                 f"({pools.COMMON_EPITHETS[qi.band]})")
-    lines.append(f"Source model : {meta.name or 'unknown'} ({meta.arch or 'unknown'})")
-    lines.append(f"Parameters   : {_fmt_params(s['n_params'])}  ->  size class: "
-                 f"{s['tier_name']} ({s['tier_prose']})")
-    quant_line = (f"Quantization : {qi.name} ({qi.label})  ->  "
-                  f"condition: {HEALTH_WORDS[qi.band]}")
+    quant_val = (f"{qi.name} ({qi.label})  ->  "
+                 f"condition: {HEALTH_WORDS[qi.band]}")
     if not qi.recognized:
-        quant_line += "  [UNKNOWN QUANT — condition estimated]"
-    lines.append(quant_line)
-    lines.append(RULE)
-    lines.append("")
-    lines.append(_intro_text(s))
+        quant_val += "  [UNKNOWN QUANT — condition estimated]"
+    front = {
+        "source_model": f"{meta.name or 'unknown'} ({meta.arch or 'unknown'})",
+        "parameters": (f"{_fmt_params(s['n_params'])}  ->  size class: "
+                       f"{s['tier_name']} ({s['tier_prose']})"),
+        "quantization": quant_val,
+    }
+
+    lines: list[str] = ["---"]
+    for key, value in front.items():
+        lines.append(f"{key}: {json.dumps(value)}")
+    lines += ["---", "",
+              f"# FIELD GUIDE ENTRY — {binomial(profile, meta)} "
+              f"({pools.COMMON_EPITHETS[qi.band]})",
+              "", _intro_text(s)]
 
     if s["senses"]:
-        lines.append("")
-        lines.append("SENSES:")
+        lines += ["", "## SENSES", ""]
         for sense, prose in s["senses"]:
-            lines.append(f"  • {sense.capitalize():<14} {prose}")
+            lines.append(f"- **{sense.capitalize()}** — {prose}")
 
-    lines.append("")
-    lines.append(f"CONDITION — {HEALTH_WORDS[qi.band].upper()}: the specimen is "
-                 f"{s['health']}.")
+    lines += ["", f"## CONDITION — {HEALTH_WORDS[qi.band].upper()}", "",
+              f"The specimen is {s['health']}."]
     for mod in qi.modifiers:
-        lines.append(f"  • {mod}")
+        lines.append(f"- {mod}")
 
     if s["traits"]:
-        lines.append("")
-        lines.append("UNIQUE TRAITS:")
+        lines += ["", "## UNIQUE TRAITS", ""]
         for body in s["traits"]:
-            lines.append(f"  • {body}.")
+            lines.append(f"- {body}.")
 
     for title, bullets in s.get("sections", []):
-        lines.append("")
-        lines.append(title + ":")
+        lines += ["", f"## {title}", ""]
         for text in bullets:
-            lines.append(f"  • {text[0].upper() + text[1:]}.")
+            lines.append(f"- {text[0].upper() + text[1:]}.")
 
-    lines.append("")
-    lines.append(s["behavior"])
-
-    lines.append("")
-    lines.append("IMAGE PROMPT:")
-    lines.append(_prompt_text(s))
+    lines += ["", s["behavior"], "", "## IMAGE PROMPT", "",
+              _prompt_text(s).strip()]
 
     return "\n".join(lines) + "\n"
+
+
+def body_of(md: str) -> str:
+    """Everything after the H1 header line — the pure-fiction body (FR-3.4)."""
+    i = md.index("# FIELD GUIDE ENTRY")
+    return md[md.index("\n\n", i):]
 
 
 def render_prompt(kv: dict, device: str = "auto", in_depth: bool = False,

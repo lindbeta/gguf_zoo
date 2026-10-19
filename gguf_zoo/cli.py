@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from .classifier import classify_input_type_consensus, eval_classifier, train_cl
 from .demo import (DEMO_MODELS, demo_bytes, demo_quant_names,
                    normalize_demo_params, resolve_demo_quant)
 from .parser import GGUFError, build_meta, read_metadata
-from .render import build_description
+from .render import build_description, render_prompt
 from .senses import detect_input_types
 
 
@@ -25,6 +26,19 @@ def cmd_infer(args) -> int:
         print("error: --in-depth needs tensor data; not available with --meta",
               file=sys.stderr)
         return 2
+    img_requested = any(getattr(args, a) is not None for a in
+                        ("image_url", "image_key", "image_model",
+                         "save_image", "save_description"))
+    if img_requested:
+        if not args.image_url or not args.image_url.startswith(
+                ("http://", "https://")):
+            print("error: --image-url must be an http(s) URL when image "
+                  "generation is requested", file=sys.stderr)
+            return 2
+        if not args.image_model:
+            print("error: --image-model is required for image generation",
+                  file=sys.stderr)
+            return 2
     demo_kwargs = {}
     if args.demo:
         try:
@@ -55,10 +69,34 @@ def cmd_infer(args) -> int:
     except (GGUFError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(build_description(kv, header=header, device=args.device,
-                            params_override=args.params,
-                            in_depth=args.in_depth, source=source),
-          end="")
+    description = build_description(
+        kv, header=header, device=args.device, params_override=args.params,
+        in_depth=args.in_depth, source=source)
+    print(description, end="")
+    if img_requested:
+        from .imagegen import ImageGenError, default_paths, generate_image
+        try:
+            prompt = render_prompt(kv, device=args.device,
+                                   in_depth=args.in_depth, source=source,
+                                   header=header)
+            key = args.image_key or os.environ.get("OPENAI_API_KEY", "")
+            img, ext = generate_image(prompt, args.image_url,
+                                      args.image_model, key,
+                                      args.image_size)
+        except (ImageGenError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        def_img, def_desc = default_paths(build_meta(kv).name, ext)
+        img_path = args.save_image or def_img
+        desc_path = args.save_description or def_desc
+        try:
+            Path(img_path).write_bytes(img)
+            Path(desc_path).write_text(description, encoding="utf-8")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"image -> {img_path}", file=sys.stderr)
+        print(f"description -> {desc_path}", file=sys.stderr)
     return 0
 
 
@@ -146,6 +184,30 @@ def build_parser() -> argparse.ArgumentParser:
     infer.add_argument("--params", type=int, help="override the parameter estimate")
     infer.add_argument("--in-depth", action="store_true", dest="in_depth",
                        help="read sampled tensor weights for extra detail (FR-19)")
+    infer.add_argument("--image-url", dest="image_url", default=None,
+                       metavar="URL",
+                       help="OpenAI-compatible image generation API URL "
+                            "(http:// or https://; /v1/images/generations is "
+                            "appended as needed)")
+    infer.add_argument("--image-key", dest="image_key", default=None,
+                       metavar="KEY",
+                       help="API key for --image-url (defaults to "
+                            "$OPENAI_API_KEY; omit for keyless local servers)")
+    infer.add_argument("--image-model", dest="image_model", default=None,
+                       metavar="MODEL",
+                       help="image model name on the target system "
+                            "(required when image generation is requested)")
+    infer.add_argument("--image-size", dest="image_size",
+                       default="1024x1024", metavar="WxH",
+                       help="requested image size (default 1024x1024)")
+    infer.add_argument("--save-image", dest="save_image", default=None,
+                       metavar="PATH",
+                       help="write the generated image to PATH (default "
+                            "<model_name>_species_image.<ext>)")
+    infer.add_argument("--save-description", dest="save_description",
+                       default=None, metavar="PATH",
+                       help="write the full description to PATH (default "
+                            "<model_name>_species_description.md)")
     infer.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     infer.set_defaults(func=cmd_infer)
 

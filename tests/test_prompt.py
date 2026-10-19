@@ -1,17 +1,17 @@
-from gguf_zoo.render import RULE, build_description, render_prompt
+from gguf_zoo.render import body_of, build_description, render_prompt
 
 
 def test_FR_17_1_prompt_section_present(demo_kv):
     out = build_description(demo_kv, device="cpu")
-    assert "IMAGE PROMPT:" in out
-    prompt = out.split("IMAGE PROMPT:\n", 1)[1]
+    assert "## IMAGE PROMPT" in out
+    prompt = out.split("## IMAGE PROMPT\n\n", 1)[1]
     assert "Wildlife field-guide illustration" in prompt
 
 
 def test_FR_17_1_prompt_covers_description_details(demo_kv):
     out = build_description(demo_kv, device="cpu")
-    prompt = out.split("IMAGE PROMPT:\n", 1)[1]
-    body = out.split(RULE, 2)[2].split("IMAGE PROMPT:")[0]
+    prompt = out.split("## IMAGE PROMPT\n\n", 1)[1]
+    body = body_of(out).split("## IMAGE PROMPT")[0]
     # every bullet/section of the description reappears in the prompt
     for probe in ["weighing about", "on the head:", "foraging as",
                   "condition:", "behaving thus:"]:
@@ -33,7 +33,7 @@ def test_FR_17_3_prompt_deterministic_and_matches_section(demo_kv):
     p2 = render_prompt(demo_kv, device="cpu")
     assert p1 == p2
     out = build_description(demo_kv, device="cpu")
-    section = out.split("IMAGE PROMPT:\n", 1)[1].strip()
+    section = out.split("## IMAGE PROMPT\n\n", 1)[1].strip()
     assert p1 == section
 
 

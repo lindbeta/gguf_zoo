@@ -1,5 +1,5 @@
 from gguf_zoo import pools
-from gguf_zoo.render import RULE, build_description
+from gguf_zoo.render import body_of, build_description
 
 NON_MAMMAL = [c for c in pools.CLADES if c not in ("mammal", "mythical")]
 NON_BIRD = [c for c in pools.CLADES if c not in ("bird", "mythical")]
@@ -54,7 +54,7 @@ def test_FR_18_4_filtered_pools_never_empty():
 
 def test_FR_18_anchor_habitat_consistent(demo_kv):
     out = build_description(demo_kv, device="cpu")
-    body = out.split(RULE, 2)[2]
+    body = body_of(out)
     anchor_line = next(ln for ln in body.splitlines() if ln.strip())
     creature = pools.anchor_creature(
         anchor_line.split(" — ")[0][0].lower() + anchor_line.split(" — ")[0][1:])

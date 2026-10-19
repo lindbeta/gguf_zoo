@@ -816,32 +816,47 @@ Fixed section order. The header block (between the `=` rules) is the **only**
 place GGUF-derived strings may appear; everything below it is pure fiction
 (FR-3.4):
 
-```
-========================================================================
-FIELD GUIDE ENTRY — <binomial> (<epithet>)
-Source model : <name> (<arch>)
-Parameters   : ~7.0B  ->  size class: Small (housefly to honeybee)
-Quantization : Q4_K_M (4-bit K-quant)  ->  condition: weathered
+```markdown
+---
+source_model: "<name> (<arch>)"
+parameters: "~7.0B  ->  size class: Small (housefly to honeybee)"
+quantization: "Q4_K_M (4-bit K-quant)  ->  condition: weathered"
+---
+
+# FIELD GUIDE ENTRY — <binomial> (<epithet>)
 
 <intro paragraph: tier anchor, actual size+weight (FR-4.6), body plan,
           integument, color, posture, habitat+features, appended anatomy>
 
-SENSES:
-  • Sight          a cluster of multifaceted eyes like wet garnets
+## SENSES
 
-CONDITION — WEATHERED: the specimen is <phrase>.
-  • patchily mangled in blocky clumps, ...
+- **Sight** — a cluster of multifaceted eyes like wet garnets
 
-UNIQUE TRAITS:
-  • Fermentation Crop (organ) — a pale gland that weeps on a rhythm no one has
-    timed.
-  • the Helix of Marrow (structure) — a coiled cartilage strut that rotates a
-    quarter-turn on each exhale.
+## CONDITION — WEATHERED
+
+The specimen is <phrase>.
+
+- patchily mangled in blocky clumps, ...
+
+## UNIQUE TRAITS
+
+- Fermentation Crop (organ) — a pale gland that weeps on a rhythm no one has
+  timed.
+- the Helix of Marrow (structure) — a coiled cartilage strut that rotates a
+  quarter-turn on each exhale.
 
 <one behavior sentence>
+
+## IMAGE PROMPT
+
+<single-line image prompt>
 ```
 
-**9.1** Opening/closing line of `=` characters, width 72.
+**9.1** The output is **Markdown**: YAML front matter (double-quoted values)
+holding `source_model`, `parameters`, and `quantization`, followed by the H1
+`# FIELD GUIDE ENTRY — <binomial> (<epithet>)`. Sections are H2 headings and
+items are `- ` list bullets. The front matter is the only place GGUF-derived
+strings may appear; everything after the H1 is pure fiction (FR-3.4).
 **9.2** Exactly one behavior sentence from a fixed pool, chosen by the seeded RNG.
 
 ### FR-10 — CLI
@@ -856,6 +871,8 @@ uv run gguf-zoo infer --demo [NAME] [--save out.gguf]
 uv run gguf-zoo infer --demo [--demo-name NAME] [--demo-params N] [--demo-quant Q]
 uv run gguf-zoo infer <file.gguf> --params 7155000000   # override estimate
 uv run gguf-zoo infer <file.gguf> --in-depth            # read sampled weights (FR-19)
+uv run gguf-zoo infer <file.gguf> --image-url URL --image-model M \
+    [--image-key KEY] [--image-size WxH] [--save-image PATH] [--save-description PATH]
 uv run gguf-zoo train-senses [--out artifacts/sense_clf.pt] [--seed 0] [--device auto]
 uv run gguf-zoo eval-senses [--device auto]
 uv run gguf-zoo train-attributes [--out artifacts/field_attr_clf.pt] [--seed 0] [--device auto]
@@ -896,7 +913,7 @@ uv run gguf-zoo detect-senses <file.gguf>     # consensus per declared input
 passing test that exercises it.** This is a hard, structural requirement of the
 spec, not a best-effort guideline.
 
-1. **11.1** Every FR and every sub-requirement ID (FR-1.1 … FR-19.6) must be
+1. **11.1** Every FR and every sub-requirement ID (FR-1.1 … FR-20.6) must be
    covered by at least one named test. A requirement without a test is **not
    done**, even if the code appears to work.
 2. **11.2** Tests are named after the requirement they verify, e.g.
@@ -941,6 +958,7 @@ spec, not a best-effort guideline.
 | FR-17.1–17.3 | `test_prompt.py` |
 | FR-18.1–18.4 | `test_consistency.py` |
 | FR-19.1–19.6 | `test_weights.py` |
+| FR-20.1–20.6 | `test_imagegen.py` |
 
 ### FR-12 — GPU acceleration (training and inference)
 
@@ -1211,6 +1229,33 @@ space contains ≥ 8 fictional attributes disjoint from the real ones;
 6. **19.6** All in-depth output is deterministic: same file → byte-identical
    description (evenly spaced sampling, fixed thresholds, no RNG).
 
+### FR-20 — Remote image generation (OpenAI-compatible)
+
+1. **20.1** `infer` accepts `--image-url URL`, `--image-key KEY`,
+   `--image-model MODEL`, `--image-size WxH` (default `1024x1024`),
+   `--save-image PATH`, and `--save-description PATH`.
+2. **20.2** Image generation is requested when any of these flags is present.
+   Then `--image-url` (must start with `http://` or `https://`) and
+   `--image-model` are required; otherwise → stderr message + exit 2.
+   `--image-key` falls back to `$OPENAI_API_KEY` and may be empty for keyless
+   local servers.
+3. **20.3** The IMAGE PROMPT line is POSTed to the OpenAI-compatible
+   `…/images/generations` endpoint (the path is appended to the URL as needed)
+   as `{model, prompt, n:1, size, response_format:"b64_json"}`. The response
+   image is taken from `data[0].b64_json` (saved as PNG) or downloaded from
+   `data[0].url`. Any transport/API failure → stderr message + exit 1, never
+   a traceback.
+4. **20.4** Default output names use the sanitized model name
+   (non-filesystem characters → `_`): `<model_name>_species_image.<ext>` and
+   `<model_name>_species_description.md`; `--save-image` /
+   `--save-description` override the respective path.
+5. **20.5** The description file contains the full field-guide entry exactly
+   as printed to stdout.
+6. **20.6** This is the **only** permitted network access at inference time
+   (amends FR-0.4 / acceptance §4) and happens solely when the flags are
+   given. `test_imagegen.py` monkeypatches the transport — the test suite
+   never touches the network.
+
 ---
 
 ## 3. Test fixtures: synthetic GGUF builder
@@ -1317,10 +1362,11 @@ the anomalous-anatomy path (FR-3.7).
 4. Managed entirely by `uv` in a project-local `.venv` (`uv sync` creates it,
    `uv sync --frozen` reproduces it from the committed `uv.lock`; interpreter
    pinned via `.python-version`; `.venv/` git-ignored). No system/global
-    interpreter use, no manual `pip install`. No network access at inference, no
+    interpreter use, no manual `pip install`. No network access at inference
+    except the explicit `--image-*` remote generation (FR-20), no
     reading of tensor data except under `--in-depth` (FR-19), and no
     third-party runtime deps beyond `numpy` and `torch`.
-5. **FR-11 holds:** every FR id (FR-1.1 … FR-19.6) has at least one passing,
+5. **FR-11 holds:** every FR id (FR-1.1 … FR-20.6) has at least one passing,
    behavior-asserting test, `tests/TRACEABILITY.md` maps each id to its test(s),
    and `test_traceability.py` fails if any id is unmapped, skipped, or xfailed.
    A requirement without a green test is **not complete**.

@@ -89,11 +89,11 @@ def test_FR_3_11_kind_tags_both_kinds():
 def test_FR_3_12_line_format(demo_kv):
     out = build_description(demo_kv, device="cpu")
     lines = out.splitlines()
-    i = lines.index("UNIQUE TRAITS:")
-    trait_lines = [ln for ln in lines[i + 1:] if ln.startswith("  • ")]
+    i = lines.index("## UNIQUE TRAITS")
+    trait_lines = [ln for ln in lines[i + 1:] if ln.startswith("- ")]
     assert trait_lines
     for ln in trait_lines:
-        core = ln.removeprefix("  • ")
+        core = ln.removeprefix("- ")
         assert core.endswith(".")
         assert ANATOMY_RE.match(core[:-1])
 
@@ -106,5 +106,5 @@ def test_FR_3_12_no_function_unknown_suffix(monkeypatch, demo_kv):
                          ("Sinus (structure) — a hinge that folds.", "k2")])
     out = render.build_description(demo_kv, device="cpu")
     assert "Function unknown" not in out
-    assert "• Villus (organ) — a pale gland that weeps." in out
-    assert "• Sinus (structure) — a hinge that folds." in out
+    assert "- Villus (organ) — a pale gland that weeps." in out
+    assert "- Sinus (structure) — a hinge that folds." in out
