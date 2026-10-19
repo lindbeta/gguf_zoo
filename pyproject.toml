@@ -3,6 +3,7 @@ name = "gguf-zoo"
 version = "2.0.0"
 description = "GGUF metadata -> deterministic fictional creature field guide"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",

@@ -1,17 +1,19 @@
 # gguf-zoo
 
-`gguf-zoo` reads the **metadata header** of a `.gguf` model file (never the
-weights) and procedurally generates a deterministic fictional **creature field
-guide**: body size from the parameter estimate, physical condition from the
-quantization, senses from the declared input modalities (via a small trained
-classifier), and a New-Latin binomial from the model name and traits.
+`gguf-zoo` reads the **metadata header** of a `.gguf` model file (weights are
+only touched with the opt-in `--in-depth` flag) and procedurally generates a
+deterministic fictional **creature field guide**: body size from the parameter
+estimate, physical condition from the quantization, senses from the declared
+input modalities (via a small trained classifier), and a New-Latin binomial
+from the model name and traits.
 
 ## Features
 
-- GGUF v2/v3 header-only parser (no tensor reads, no third-party GGUF lib).
+- GGUF v2/v3 parser with no third-party GGUF lib; header-only by default,
+  `--in-depth` additionally samples tensors.
 - Unknown metadata fields become deterministic "cryptid anomaly" organs.
-- Parameter-count size ladder (virus → kaiju) and quant → health ladder with
-  additional condition descriptions.
+- Parameter-count size ladder (Submicroscopic → Beyond Kaiju) and quant →
+  health ladder with additional condition descriptions.
 - A small **trained** input-type → sense classifier (GPU when available) with a
   three-run consensus; only externally visible senses are rendered, the rest
   become anomalies (with a focus on fictional senses).
@@ -47,7 +49,7 @@ uv run gguf-zoo infer --demo
 | Command | Description |
 |---|---|
 | `uv run gguf-zoo infer <file.gguf>` | generate a field guide from a GGUF file |
-| `uv run gguf-zoo infer <file.gguf> --in-depth` | sample real weights for the in-depth biology sections |
+| `uv run gguf-zoo infer <file.gguf> --in-depth` | sample real weights for the in-depth biology sections (not available with `--meta`) |
 | `uv run gguf-zoo infer <file.gguf> --image-url URL --image-model M [--image-key KEY] [--image-size WxH] [--save-image PATH] [--save-description PATH]` | send the IMAGE PROMPT to an OpenAI-compatible image API and save the image + description |
 | `uv run gguf-zoo infer --meta metadata.json` | generate from a flat JSON of `key -> value` |
 | `uv run gguf-zoo infer --demo [NAME] [--save out.gguf]` | built-in demo model: `qwen2` (default) or `mixtral` |
@@ -60,10 +62,12 @@ uv run gguf-zoo infer --demo
 | `uv run gguf-zoo senses --name "mel spectrogram"` | classify one input-type name |
 | `uv run gguf-zoo detect-senses <file.gguf>` | classify a file's declared inputs |
 
-Flags: `--device auto|cuda|mps|cpu` (default `auto`), `--seed`, `--draws`.
+Flags: `--device auto|cuda|mps|cpu` (default `auto`) on every subcommand;
+`--seed` on the train/senses commands; `--draws` sets the sense classifier's
+consensus run count (default 3).
 
 With `--in-depth`, gguf-zoo also reads the file's tensor section: it samples up
-to 64 evenly spaced weight blocks per layer and derives quant-robust statistics
+to 64 evenly spaced weight blocks per tensor and derives quant-robust statistics
 (weight spread, heterogeneity, outlier kurtosis, sparsity, layer trend) that
 drive separate biology-manual sections — **APPEARANCE VARIATION**,
 **TEMPERAMENT**, **SPECIES BEHAVIOR** (migration, courtship, calls, sociality),
@@ -233,7 +237,7 @@ trained attribute classifier gives every unmapped field a best-match
 attribute, and a seeded `Die` selects prose from fixed pools. Only the header
 block quotes the file; the body is pure fiction. With `--in-depth` the tensor
 section is additionally sampled for quant-robust weight statistics.
-See `SPEC.md` for the full specification.
+See `.agents/SPEC.md` for the full specification.
 
 ## Testing
 
@@ -241,7 +245,7 @@ See `SPEC.md` for the full specification.
 uv run pytest -q
 ```
 
-Every functional requirement in `SPEC.md` is covered by a test (see
+Every functional requirement in `.agents/SPEC.md` is covered by a test (see
 `tests/TRACEABILITY.md`).
 
 ## Project layout
@@ -252,6 +256,7 @@ gguf_zoo/            parser, rules, pools, senses, classifier, attributes,
                      cli, artifacts/
 tests/               pytest suite + TRACEABILITY.md
 docs/                example species image + description from the README demo
+gguf_zoo.py          thin entry shim (prefer the console script)
 pyproject.toml       uv project (deps + console script gguf-zoo)
 .agents/SPEC.md      full specification
 ```
