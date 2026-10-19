@@ -44,7 +44,7 @@ def _check(pool, name):
 
 
 def test_FR_14_5_auto_discovery_finds_known_pools():
-    for known in ("INTEGUMENT", "PALETTE", "BEHAVIOR", "NEURAL_RANGE",
+    for known in ("INTEGUMENT", "PALETTE_FAMILIES", "BEHAVIOR", "NEURAL_RANGE",
                   "NEURAL_ORGAN_ROLES", "QUANT_MODIFIER_POOLS",
                   "HEALTH_PHRASES", "TIER_ANCHORS", "HABITAT_PHRASES"):
         assert any(k == known or k.startswith(known + "[") for k in ALL_POOLS), known

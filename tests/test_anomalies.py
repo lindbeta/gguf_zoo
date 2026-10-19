@@ -2,6 +2,7 @@ import re
 
 from gguf_zoo.anomalies import anomaly_organs
 from gguf_zoo.parser import build_meta
+from gguf_zoo.pools import ANATOMY_LOCATIONS
 from gguf_zoo.render import build_description
 from gguf_zoo.rules import extract_features
 
@@ -96,6 +97,16 @@ def test_FR_3_12_line_format(demo_kv):
         core = ln.removeprefix("- ")
         assert core.endswith(".")
         assert ANATOMY_RE.match(core[:-1])
+
+
+def test_FR_3_13_trait_states_location():
+    bodies = [anomaly_organs({}, [(f"sense{i}", f"in{i}")])[0][0]
+              for i in range(60)]
+    bodies += [body for body, _ in anomaly_organs(
+        {f"general.zzz{i}": i for i in range(20)})]
+    locs = {b.split("— ", 1)[1].split(", ", 1)[0] for b in bodies}
+    assert locs <= set(ANATOMY_LOCATIONS)
+    assert len(locs) > 1
 
 
 def test_FR_3_12_no_function_unknown_suffix(monkeypatch, demo_kv):

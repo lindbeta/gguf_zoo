@@ -469,15 +469,90 @@ INTEGUMENT = [
     "a pelt of interlocking feathers", "a glaze of polished shell",
     "a moss of symbiotic growth",
 ]
-PALETTE = [
-    "desert tan and sand", "jade green with vermilion", "pale mistral blue",
-    "pearl and blue", "deep violet", "ink black with gold", "rust and amber",
-    "slate grey", "moss green and bone", "bruised plum", "copper and ash",
-    "milky opal", "dried-blood maroon", "sun-bleached cream", "storm-cloud grey",
-    "venom yellow", "midnight indigo", "lichen mottle", "coral and charcoal",
-    "brass and rust", "faded rose", "seafoam green", "the blue of a held breath",
-    "an unremembered violet", "green like a rumor",
-]
+# Color families keyed by rules.palette_id (tokenizer lineage, vocab-bucket
+# fallback): 0 tan, 1 jade, 2 blue, 3 pearl, 4 violet, 5 gold, 6 rust,
+# 7 slate. Models sharing a tokenizer lineage share a family across
+# architectures.
+PALETTE_FAMILIES = {
+    0: [  # desert tan
+        "desert tan and sand", "dune ochre over pale clay", "toasted wheat",
+        "clay and chalk", "sun-bleached hide", "ochre dust and cream",
+        "cinnamon dust over bone", "fawn and flax", "sandy rust",
+        "warm biscuit brown", "pale clay bands", "tawny gold-dust",
+        "sandstone stripes", "dry-grass blond", "light caramel shading",
+        "dusty roan", "wheat-ear amber", "bleached driftwood",
+        "tan flushed with rose", "sand over darker sand",
+    ],
+    1: [  # jade and vermilion
+        "jade green with vermilion", "deep jade", "celadon and cinnabar",
+        "green jade and coral", "moss and ember", "pale celadon",
+        "jade shadowed with ink", "green as new bamboo",
+        "vermilion over jade", "sea-green and rust", "jade mottled with gold",
+        "lichen green over stone", "bamboo green and brick",
+        "jade with a cinnabar blush", "dark emerald and flame",
+        "green with a red undercoat", "jade washed in milk",
+        "spruce green and coral", "jade glinting red at the tips",
+        "green like wet stone",
+    ],
+    2: [  # mistral blue
+        "pale mistral blue", "mistral blue and slate", "wind-worn blue",
+        "sky-scoured blue", "steel blue and chalk", "blue as a cold front",
+        "powder blue over grey", "storm blue", "glacier blue",
+        "blue-grey and silver", "deep cobalt", "blue like distant hills",
+        "haze blue", "indigo-tinged blue", "blue with a windblown pale belly",
+        "cobalt and cloud", "blue as a gas flame", "faded work-shirt blue",
+        "blue layered like weather", "blue-rimmed grey",
+    ],
+    3: [  # pearl and blue
+        "pearl and blue", "pearl white with blue shadow", "opalescent pearl",
+        "mother-of-pearl sheen", "pearl grey and cornflower",
+        "chalk white with blue veins", "silvery pearl",
+        "pearl flushed with pale blue", "ivory touched with blue",
+        "pearl banded in blue", "shimmering nacre", "pearl dusted with blue",
+        "white as inner shell", "pearl with a blue undertow",
+        "lustrous off-white", "pearl clouded with blue",
+        "blue-flecked pearl", "glossy white with blue shadow",
+        "pearl like a winter sky", "nacre over pale blue",
+    ],
+    4: [  # violet
+        "deep violet", "violet and ash", "bruised plum",
+        "violet flushed with rose", "dark aubergine", "violet dusted pale",
+        "lilac and slate", "violet like a bruise", "purple-black",
+        "violet streaked with silver", "amethyst over shadow",
+        "violet faded to grey", "plum and violet", "violet rimmed in white",
+        "violet with a copper sheen", "dusty mauve",
+        "violet shadowed to black", "violet blooming at the edges",
+        "pale violet and bone", "violet under a grey veil",
+    ],
+    5: [  # ink and gold
+        "ink black with gold", "gold leaf over ink", "black-gold lacquer",
+        "ink with gold flecks", "sooty black and brass", "gold-dusted charcoal",
+        "black with a gold seam", "ink spilled on gold", "matte black and gilt",
+        "gold-veined obsidian", "black with gold-tipped filaments",
+        "dark bronze and ink", "gold like candlelight on ink",
+        "blue-black ink with gold", "charcoal and honey gold",
+        "black polished to gold", "gold rings on ink", "ink black, gold-eyed",
+        "tarnished gold on black", "black fur with gold guard hairs",
+    ],
+    6: [  # rust
+        "rust and amber", "oxidized copper", "rust over bone", "iron red",
+        "rust and charcoal", "burnt orange", "rust-flecked grey",
+        "the red of old pennies", "rust banded black", "amber-rust",
+        "corroded orange", "rust and sand", "dark rust and slate",
+        "rust bleeding to brown", "rust with a metallic sheen",
+        "rusted chain mail", "rust and ash", "orange-brown oxide",
+        "rust mottled with ochre", "rust like dried blood",
+    ],
+    7: [  # slate (unknown lineage)
+        "slate grey", "storm-cloud grey", "grey and graphite", "dusty slate",
+        "grey as old rain", "slate with white flecks", "charcoal grey",
+        "grey-green and stone", "slate banded black", "pale ash grey",
+        "grey upon grey", "graphite and chalk", "grey like wet cement",
+        "slate dusted white", "unremarkable grey", "grey mottled like a roof",
+        "slate shadowed darker", "grey with a silver edge", "stone grey",
+        "grey the color of a closed door",
+    ],
+}
 HABITAT_TINT = [
     "an arctic white sheen", "a tropical vivid flush", "a temperate green tint",
     "a jade-and-ink wash", "a desert ochre cast", "a boreal blue shadow",
@@ -645,6 +720,17 @@ PERSON_NAMES = [
     "Tomas", "Yuki", "Dmitri", "Priya", "Solomon", "Anouk", "Hank", "Chiara",
     "Bodhi", "Rosalind", "Kwame", "Elif", "Sven", "Delphine", "Amara",
     "Dr. Voss", "Nurse Halloran",
+]
+# Where on the creature a fictional anatomy sits (FR-3.12).
+ANATOMY_LOCATIONS = [
+    "at the crown", "at the nape", "along the dorsal ridge",
+    "between the shoulder blades", "in the chest cavity", "beneath the jaw",
+    "behind the eyes", "above the hip joint", "in the shoulder socket",
+    "along the leading forelimb", "at the base of the tail", "in the throat",
+    "under the lowest rib", "on the inner wrist", "at the knee joint",
+    "in the palm of the hind foot", "on the temple", "beside the windpipe",
+    "at the hinge of the jaw", "in the abdominal hollow", "on the outer ear",
+    "above the kidney",
 ]
 ORGAN_BEHAVIOURS = [
     "a pale gland that weeps on a rhythm no one has timed",

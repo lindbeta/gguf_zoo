@@ -12,8 +12,8 @@ import hashlib
 import random
 
 from .attributes import ATTR_UNKNOWN, FICTIONAL_ATTRIBUTES, classify_attribute
-from .pools import (FICTIONAL_ANATOMY_NAMES, ORGAN_BEHAVIOURS, PERSON_NAMES,
-                    STRUCTURE_MOVEMENTS)
+from .pools import (ANATOMY_LOCATIONS, FICTIONAL_ANATOMY_NAMES,
+                    ORGAN_BEHAVIOURS, PERSON_NAMES, STRUCTURE_MOVEMENTS)
 
 
 def _rng(seed_str: str) -> random.Random:
@@ -23,17 +23,21 @@ def _rng(seed_str: str) -> random.Random:
 
 def _desc(seed_str: str, kind: str) -> str:
     rng = _rng(seed_str)
-    return rng.choice(ORGAN_BEHAVIOURS if kind == "organ" else STRUCTURE_MOVEMENTS)
+    loc = rng.choice(ANATOMY_LOCATIONS)
+    desc = rng.choice(ORGAN_BEHAVIOURS if kind == "organ"
+                      else STRUCTURE_MOVEMENTS)
+    return f"{loc}, {desc}"
 
 
 def _anatomy(seed_str: str) -> str:
-    """Return '<Name> (<organ|structure>) — <description>'."""
+    """Return '<Name> (<organ|structure>) — <location>, <description>'."""
     rng = _rng(seed_str)
     word = rng.choice(FICTIONAL_ANATOMY_NAMES)
     kind = rng.choice(["organ", "structure"])
     name = f"{rng.choice(PERSON_NAMES)}'s {word}" if rng.random() < 0.4 else word
+    loc = rng.choice(ANATOMY_LOCATIONS)
     desc = rng.choice(ORGAN_BEHAVIOURS) if kind == "organ" else rng.choice(STRUCTURE_MOVEMENTS)
-    return f"{name} ({kind}) — {desc}"
+    return f"{name} ({kind}) — {loc}, {desc}"
 
 
 def field_anatomy(key: str, value, device: str = "auto") -> str | None:

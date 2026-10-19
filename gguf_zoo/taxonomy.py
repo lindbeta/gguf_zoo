@@ -40,6 +40,9 @@ _EPITHETS = {
     "dark": ("niger", "nigra", "nigrum"),
     "tan": ("fuscus", "fusca", "fuscum"),
     "violet": ("violaceus", "violacea", "violaceum"),
+    "blue": ("caeruleus", "caerulea", "caeruleum"),
+    "pearl": ("perlaceus", "perlacea", "perlaceum"),
+    "rust": ("rubigineus", "rubiginea", "rubigineum"),
     "ignotus": ("ignotus", "ignota", "ignotum"),
 }
 
@@ -48,7 +51,8 @@ _COND_MAP = {10: "immaculate", 9: "immaculate", 4: "corrupt", 3: "corrupt"}
 _HEADGEAR_MAP = {1: "horned", 2: "horned", 3: "horned", 4: "unicorn"}
 _GUT_MAP = {0: "small_gut", 2: "ruminant", 3: "great_gut"}
 _DIET_MAP = {0: "specialist", 5: "alleater"}
-_PALETTE_MAP = {0: "tan", 1: "jade", 4: "violet", 5: "gold", 7: "dark"}
+_PALETTE_MAP = {0: "tan", 1: "jade", 2: "blue", 3: "pearl", 4: "violet",
+                5: "gold", 6: "rust"}
 
 
 def _tokens(name: str | None) -> list[str]:

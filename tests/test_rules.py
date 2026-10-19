@@ -1,6 +1,7 @@
+from gguf_zoo import pools
 from gguf_zoo.parser import build_meta
 from gguf_zoo.rules import (VOCAB_DIET_BOUNDARIES, build_profile, diet_class,
-                            estimate_params, extract_features)
+                            estimate_params, extract_features, palette_id)
 
 
 def test_FR_2_1_arch_regex_matches_any_arch():
@@ -86,3 +87,38 @@ def test_FR_2_standard_general_keys_recognized():
                     "general.mystery_field": 42})
     f = extract_features(m)
     assert set(f.unknown) == {"general.mystery_field"}
+
+
+def test_palette_from_tokenizer_lineage_across_arches():
+    a = build_meta({"general.architecture": "llama",
+                    "tokenizer.ggml.pre": "llama-bpe"})
+    b = build_meta({"general.architecture": "deepseek2",
+                    "tokenizer.ggml.pre": "llama-bpe"})
+    assert palette_id(a) == palette_id(b) == 0
+    c = build_meta({"general.architecture": "gemma2",
+                    "tokenizer.ggml.pre": "qwen2"})
+    assert palette_id(c) == 1
+
+
+def test_palette_vocab_fallback_when_no_tokenizer():
+    a = build_meta({"general.architecture": "llama",
+                    "general.architecture.llama.vocab_length": 151936})
+    b = build_meta({"general.architecture": "gemma",
+                    "general.architecture.gemma.vocab_length": 151936})
+    assert palette_id(a) == palette_id(b) == 3  # 100000 <= v < 200000
+    assert palette_id(build_meta({})) == 7
+
+
+def test_palette_lineage_beats_vocab_fallback():
+    m = build_meta({"general.architecture": "phi3",
+                    "tokenizer.ggml.pre": "nova-bpe",
+                    "general.architecture.phi3.vocab_length": 32064})
+    assert palette_id(m) == 2
+
+
+def test_profile_palette_draws_within_family():
+    m = build_meta({"general.architecture": "qwen2",
+                    "tokenizer.ggml.pre": "qwen2"})
+    p = build_profile(m)
+    assert p.palette == 1
+    assert len(pools.PALETTE_FAMILIES[p.palette]) >= 20

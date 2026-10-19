@@ -434,17 +434,26 @@ def integument_class(meta: ModelMeta, condition: int) -> int:
     return base
 
 
-_PALETTE = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 6}
+_TOK_LINEAGE = [("qwen", 1), ("gemma", 3), ("phi", 4), ("deepseek", 5),
+                ("nova", 2), ("mistral", 2), ("llama", 0), ("falcon", 6),
+                ("rwkv", 6), ("cohere", 6), ("triton", 6)]
 
 
-def palette_id(arch: str | None) -> int:
-    a = (arch or "").lower()
-    table = [("llama", 0), ("qwen", 1), ("mistral", 2), ("mixtral", 2),
-             ("gemma", 3), ("phi", 4), ("deepseek", 5), ("falcon", 6),
-             ("command", 7), ("cohere", 7)]
-    for key, pid in table:
-        if a.startswith(key):
+def palette_id(meta: ModelMeta) -> int:
+    """Color family (0 tan, 1 jade, 2 blue, 3 pearl, 4 violet, 5 gold,
+    6 rust, 7 slate) from tokenizer lineage, falling back to a vocab-size
+    bucket; architecture never influences color."""
+    kv = getattr(meta, "kv", {}) or {}
+    hay = (str(kv.get("tokenizer.ggml.pre", "")) + " " +
+           str(kv.get("tokenizer.ggml.model", ""))).lower()
+    for key, pid in _TOK_LINEAGE:
+        if key in hay:
             return pid
+    if meta.n_vocab:
+        for i, edge in enumerate(VOCAB_DIET_BOUNDARIES):
+            if meta.n_vocab < edge:
+                return i
+        return 5
     return 7
 
 
@@ -515,7 +524,7 @@ def build_profile(meta: ModelMeta) -> Profile:
         body_length=body_length_class(meta.n_layers),
         diet_breadth=diet_class(meta.n_vocab),
         integument=integument_class(meta, qi.band),
-        palette=palette_id(meta.arch),
+        palette=palette_id(meta),
         habitat_tint=habitat_tint_id(meta.language),
         fastness=fastness_id(qi.band),
         gradient_pattern=gradient_pattern_id(meta.rope_freq_base),

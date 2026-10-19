@@ -334,7 +334,7 @@ an unknown field (FR-3).
 | `diet_breadth` | `<arch>.vocab_length` | 6-class ladder, §2.1 boundaries |
 | `marking_complexity` | `<arch>.vocab_length` | same 6-class boundaries (kept identical) |
 | `integument` | `has_ssm` / MoE / quant block style | priority: SSM→exoskeleton; MoE→quills; K-quant→fur; legacy→scales; lossless→bare |
-| `palette` | `general.architecture` | llama→desert tan; qwen→jade+vermilion; mistral→mistral blue; gemma→pearl/blue; phi→violet; deepseek→ink+gold; falcon→rust; command→amber; unknown→slate |
+| `palette` | `tokenizer.ggml.pre` + `tokenizer.ggml.model`; fallback `<arch>.vocab_length` bucket | tokenizer **lineage** drives color, never architecture: llama-bpe→desert tan; qwen→jade+vermilion; nova/mistral→mistral blue; gemma→pearl/blue; phi→violet; deepseek→ink+gold; falcon/rwkv/cohere→rust; unknown lineage→vocab bucket (6 classes over `VOCAB_DIET_BOUNDARIES`); no vocab→slate. Models sharing a tokenizer lineage share a color family across architectures |
 | `habitat_tint` | `general.language`/`tokenizer` langs | arctic / multilingual / temperate / jade-ink / desert-ochre |
 | `fastness` | `general.file_type` | Q8+ true color; Q4–Q6 washed; Q2/Q3 pale |
 | `gradient_pattern` | `<arch>.rope.freq_base` | ≥100000 slow gradient; ≥10000 even; <10000 banded |
@@ -428,9 +428,12 @@ nothing raises on a sparse file.
     - **bodily structure** → a description of its *structure and its movement*:
       shape, material, and how it moves or is moved (e.g. "a coiled cartilage
       strut that rotates a quarter-turn on each exhale").
-    The kind is chosen deterministically from the same seed.
+     The kind is chosen deterministically from the same seed. Every description
+     is prefixed with **where on the creature the anatomy sits** — a generic
+     anatomical location phrase from the `ANATOMY_LOCATIONS` pool (e.g. "at the
+     nape", "in the chest cavity"), drawn from the same seed.
  12. **3.12 — Line format.** Each anomaly line is
-     `• <Anatomy Name> (<organ|structure>) — <behaviour | structure+movement>.`
+     `• <Anatomy Name> (<organ|structure>) — <location>, <behaviour | structure+movement>.`
      and **nothing else**: no key, no value, no input name (FR-3.4), and **no
      "Function unknown." suffix** — the invented description already speaks for
      itself, and a line must never both describe what an anatomy does and call
@@ -438,10 +441,10 @@ nothing raises on a sparse file.
      The anatomy name is either a fictional attribute name attributed
      by the attribute classifier (FR-16.3) or, when the classifier abstains, a
      name from the FR-3.10 naming pools. Examples:
-     - `• Fermentation Crop (organ) — a pale gland that weeps on a rhythm no one
-       has timed.`
-     - `• the Helix of Marrow (structure) — a coiled cartilage strut that rotates
-       a quarter-turn on each exhale.`
+     - `• Fermentation Crop (organ) — beneath the jaw, a pale gland that weeps on
+       a rhythm no one has timed.`
+     - `• the Helix of Marrow (structure) — at the base of the tail, a coiled
+       cartilage strut that rotates a quarter-turn on each exhale.`
 
 ### FR-4 — Size tier from parameter count
 
@@ -769,10 +772,13 @@ features). At most two, chosen by fixed priority
 inflected to the genus gender. Examples: fur→`pilosus/a/um`,
 scales→`squamatus/a/um`, quills→`setosus/a/um`, exoskeleton→`loricatus/a/um`,
 great-gut→`magaventer`, cyclops→`cyclops`, horned→`cornutus/a/um`,
-all-eater→`omnivorus/a/um`, plus palette adjectives (jade→`viridis`, …), and
+all-eater→`omnivorus/a/um`, plus palette adjectives (tan→`fuscus`,
+jade→`viridis`, blue→`caeruleus`, pearl→`perlaceus`, violet→`violaceus`,
+gold→`aureus`, rust→`rubigineus`), and
 size adjectives for the tier. Skip rules: a "worn/weathered" condition epithet is
 skipped when integument already fired; `hornless` fires only if nothing else did;
-palette defaults never fire; if nothing fires, use `ignotus/a/um`.
+the slate (unknown-lineage) palette default never fires; if nothing fires, use
+`ignotus/a/um`.
 
 **7.3** **Authority** = Latinized `general.author` (capitalized → `-ia`;
 lowercase stays), else the architecture name lowercased; finetunes
@@ -1127,8 +1133,8 @@ printed (FR-3.4). Recognized keys are mapped deterministically by FR-2; every
    exist so unknown fields land on invented anatomy instead of colliding with
    the real attributes already derived from recognized keys. A reserved
    `attr_unknown` label is the abstain fallback (never a training label).
- 3. **16.3 — Rendering.** A field classified to a **fictional** attribute renders
-    `• <Display Name> (<kind>) — <prose from that kind's pool>.` per FR-3.12
+  3. **16.3 — Rendering.** A field classified to a **fictional** attribute renders
+     `• <Display Name> (<kind>) — <location>, <prose from that kind's pool>.` per FR-3.12
    (prose seeded by `sha256(f"{key}::{value!r}")`, FR-3.2). A field classified
    to a **real** attribute adds nothing — that attribute is already rendered
    from its canonical source. A field classified `attr_unknown` renders named
